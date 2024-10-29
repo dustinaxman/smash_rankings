@@ -34,13 +34,20 @@ print(set(all_tournaments_df["Tier"]))
 # print(process_tournament_file(output_file))
 
 
+from src.smash_data.puller import process_tournaments
+TOURNAMENT_FOLDER_PATH = "/Users/deaxman/Downloads/all_smash_rankings/"
+process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=TOURNAMENT_FOLDER_PATH)
+
+
+CHECK IF WE CAN SPEED UP THE MATCHES PULL!
+
 
 # run pull on all p and S+ S tiers 
 
 # look at the files and check for errors
 
 
-
+not in ["D", "C", "B", "B+", "A", "A+"]
 
 
 

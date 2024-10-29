@@ -17,15 +17,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
-
-TOURNAMENT_FOLDER_PATH = "/Users/deaxman/Downloads/all_smash_rankings/"
-EXTRACTED_TOURNAMENTS_PATH = "/Users/deaxman/Downloads/extracted_tournaments/"
-
 token = os.environ["STARTGG_API_KEY"] 
 
 
-s3_bucket = 'smash_ranking_tournament_data'
-dynamo_db_table = 'smash_ranking_tournament_table'
+s3_bucket = 'smash-ranking-tournament-data'
+dynamo_db_table = 'smash-ranking-tournament-table'
 
 tier_mapper = {
     '6': 'P',
@@ -181,17 +177,6 @@ def get_tournament_events(tourney_slug, token, videogame_id=1386):
     raise Exception(f"Query failed after {max_retries} retries with status code {response.status_code}: {response.text}")
 
 
-# def select_correct_event(all_events_for_tourney):
-#     all_selections = []
-#     for event in all_events_for_tourney:
-#         n = event["name"]
-#         if (("double" not in n) and ("squad" not in n) and ("team" not in n) and ("crew" not in n) and ("2v2" not in n) and ("random" not in n) and ("low tier" not in n) and ("speedrun" not in n) and ("ladder" not in n) and ("lcq" not in n) and ("dobles" not in n) and ("16 and under" not in n) and ("n poke" not in n) and ("vip" not in n) and ("all stars" not in n) and ("swiss gp" not in n)) and (("smash" in n) or ("singles" in n) or ("ultimate" in n) or ("1v1" in n) or ("1vs1" in n)):
-#             all_selections.append(event["id"])
-#     if len(all_selections) > 1:
-#         print("uncertain which event is ult singles:", all_selections)
-#     else:
-#         return all_selections[0]
-
 def select_correct_event(all_events_for_tourney):
     exclude_keywords = [
         "double", "squad", "team", "crew", "2v2", "random", "low tier", 
@@ -209,13 +194,6 @@ def select_correct_event(all_events_for_tourney):
         print("Uncertain which event is Ultimate Singles:", all_selections)
     else:
         return all_selections[0] if all_selections else None
-
-#         if “ultimate singles” pick it
-#if multiple, remove “double” “squad” 
-# if only one, pick it
-# if super-smash-bros-ultimate pick it
-#if ultimate-singles pick
-#if Ultimate Singles (Main Event) pick it
 
 
 def count_total_objects_in_set(set_data):
@@ -330,7 +308,7 @@ def get_all_sets(event_id, token):
         data = response.json()
         if not data.get("success", True) or "data" not in data:
             print(data)
-            exit(1)
+            raise ValueError(f"No success or no data in response: {str(response)}")
         sets = data['data']['event']['sets']['nodes']
 
         start_time = datetime.utcfromtimestamp(data['data']['event']['startAt'])
@@ -342,12 +320,12 @@ def get_all_sets(event_id, token):
             total_objects += count_total_objects_in_set(set_data)
             all_sets.append(processed_set)
 
-        print(f"Total objects processed: {total_objects}")
-
         # Check if we have retrieved all sets
         total_sets = data['data']['event']['sets']['pageInfo']['total']
         retrieved_sets = len(all_sets)
 
+        logging.info(f"Total objects processed: {total_objects}")
+        logging.info(f"Retrieved {retrieved_sets} out of {total_sets} sets")
         if retrieved_sets >= total_sets:
             break
 
@@ -382,6 +360,7 @@ def extract_actual_value(cell_value):
         else:
             return None  # If no match, return None (or consider setting a default)
     return cell_value  # Return the value as-is if it is not wrapped in a formula
+
 
 def process_tournament_file(file_path):
     # Define possible column names and the standardized names we want
@@ -422,7 +401,6 @@ def process_tournament_file(file_path):
         # Convert extracted data to DataFrame
         df = pd.DataFrame(data)
         
-        # If 'link' column was missing in the original data, it should now contain extracted links from tournament column
         if 'link' not in df.columns:
             df['link'] = [row.get('link', None) for row in data]
     
@@ -479,150 +457,6 @@ def process_tournament_file(file_path):
     return pd.DataFrame(rows, columns=['Link', 'tourney_slug', 'event_slug', 'Tier'])
 
 
-# def clean_column_name(col_name):
-#     """
-#     Cleans the column name by removing trailing non-alphanumeric characters and lowercasing it.
-    
-#     Parameters:
-#         col_name (str): The original column name.
-        
-#     Returns:
-#         str: The cleaned column name.
-#     """
-#     return re.sub(r'[^a-zA-Z0-9 ]+$', '', str(col_name)).strip().lower()
-
-
-# def extract_hyperlink_from_excel(file_path, tournament_column, sheet_name=None):
-#     """
-#     Extracts hyperlinks from the tournament_column in an Excel file using openpyxl.
-#     The column is identified by matching the cleaned column names with the tournament_column.
-    
-#     Parameters:
-#         file_path (str): Path to the Excel file.
-#         tournament_column (str): The column name from which to extract the hyperlinks.
-#         sheet_name (str): Optional sheet name if you want to specify which sheet to use.
-    
-#     Returns:
-#         pd.Series: A pandas Series with extracted hyperlinks or visible text if no hyperlink is available.
-#     """
-#     # Load the workbook and select the sheet
-#     workbook = load_workbook(file_path, data_only=True)
-#     sheet = workbook[sheet_name] if sheet_name else workbook.active
-
-#     # Extract the column names from the first row and clean them
-#     original_columns = [cell.value for cell in sheet[1]]  # First row contains column headers
-#     clean_columns = [clean_column_name(col) for col in original_columns]
-
-#     # Find the index of the column that matches the cleaned tournament_column
-#     try:
-#         tournament_col_index = clean_columns.index(tournament_column.lower())
-#     except ValueError:
-#         raise ValueError(f"Column '{tournament_column}' not found in the sheet after cleaning column names.")
-
-#     # Extract hyperlinks or visible text from the matched tournament column
-#     link_data = []
-#     for row in sheet.iter_rows(min_row=2, values_only=False):  # Start at row 2 to skip headers
-#         cell = row[tournament_col_index]
-#         if cell.hyperlink and cell.hyperlink.target:
-#             link_data.append(cell.hyperlink.target)  # Extract the hyperlink URL
-#         else:
-#             link_data.append(cell.value)  # Fallback to visible text if no hyperlink
-
-#     # Return the data as a pandas Series
-#     return pd.Series(link_data)
-
-
-# def process_tournament_file(file_path):
-#     """
-#     Processes a single tournament CSV or Excel file and extracts relevant columns.
-    
-#     Parameters:
-#         file_path (str): Path to the CSV or Excel file to process.
-        
-#     Returns:
-#         pd.DataFrame: DataFrame containing columns ['Link', 'tourney_slug', 'event_slug', 'Tier'].
-#     """
-#     # Determine file type and load the file accordingly
-#     file_extension = os.path.splitext(file_path)[1].lower()
-#     print(file_extension)
-#     if file_extension == '.csv':
-#         table = pd.read_csv(file_path)
-#         # Clean up and standardize column names: remove trailing non-alphanumeric characters like "*" and lowercasing
-#         table.columns = [re.sub(r'[^a-zA-Z0-9 ]+$', '', str(col)).strip().lower() for col in table.columns]
-#     elif file_extension in ['.xls', '.xlsx']:
-#         print("DOGS")
-#         table = pd.read_excel(file_path)
-#         print(table)
-#         # Clean up and standardize column names: remove trailing non-alphanumeric characters like "*" and lowercasing
-#         table.columns = [re.sub(r'[^a-zA-Z0-9 ]+$', '', str(col)).strip().lower() for col in table.columns]
-#         # Check if hyperlink extraction is needed for the tournament column
-#         tournament_column = 'tournament' if 'tournament' in table.columns else 'tournaments' if 'tournaments' in table.columns else None
-#         if tournament_column:
-#             # Extract the hyperlinks
-#             table['Link'] = extract_hyperlink_from_excel(file_path, tournament_column)
-#     else:
-#         raise ValueError(f"Unsupported file type: {file_extension}")
-#     print(len(table.index))
-#     # Identify the column containing the link (column with ".gg" in majority of values)
-#     link_column = None
-#     for column in table.columns:
-#         if table[column].astype(str).str.contains('.gg').sum() > len(table) / 2:
-#             link_column = column
-#             break
-
-#     # If no link column found, but we extracted from "tournament" or "tournaments"
-#     if link_column is None:
-#         if 'Link' in table.columns:
-#             link_column = 'Link'
-#         else:
-#             raise ValueError(f"No suitable link column found in {file_path}")
-
-#     # Identify the tier/category column
-#     tier_column = 'tier' if 'tier' in table.columns else 'category' if 'category' in table.columns else None
-#     if tier_column is None:
-#         raise ValueError(f"No Tier or Category column found in {file_path}")
-
-#     # Initialize a list to collect rows
-#     rows = []
-#     # Process each row in the table
-#     for _, row in table.iterrows():
-#         link = row[link_column]
-
-#         # Skip rows without valid links
-#         if '.gg/' not in str(link) or "lne.gg" in str(link):
-#             # if "link" in row:
-#             #     link = row["link"]
-#             # if "Link" in row:
-#             #     link = row["Link"]
-#             # if "tournament" in row:
-#             #     tournament = row["tournament"]
-#             # if "tournaments" in row:
-#             #     tournament = row["tournaments"]
-#             # if "challonge" not in str(link):
-#             #     print(tournament, link)
-#             continue
-
-#         # Extract components from the link
-#         try:
-#             link_parts = link.split('.gg/')[1].split('/')
-#             tourney_slug = link_parts[1]
-#             event_slug = link_parts[3]
-#         except IndexError:
-#             raise ValueError(f"Unexpected link format in {file_path}: {link}")
-
-#         # Clean and assign the tier information
-#         tier = str(row[tier_column]).replace('Category', '').strip()
-#         if tier in tier_mapper:
-#             tier = tier_mapper[tier]
-
-#         # Append the row to the list
-#         rows.append([link, tourney_slug, event_slug, tier])
-
-#     print(len(rows))
-#     # Create a DataFrame from the rows list
-#     return pd.DataFrame(rows, columns=['Link', 'tourney_slug', 'event_slug', 'Tier'])
-
-
 def get_s3_filenames(bucket_name, prefix=''):
     """
     Get the list of filenames in an S3 bucket.
@@ -644,6 +478,7 @@ def get_s3_filenames(bucket_name, prefix=''):
                 filenames.append(obj['Key'])
     
     return filenames
+
 
 def get_major_tournaments_from_folder(directory_path):
     """
@@ -748,7 +583,7 @@ def update_dynamodb(table_name, item_data):
     table.put_item(Item=item_data)
     print(f"Updated DynamoDB with {item_data['tourney_slug']}")
 
-def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=None):
+def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=None, excluded_tiers=("D", "C", "B", "B+", "A", "A+")):
     # Ensure S3 bucket and DynamoDB table exist
     create_bucket(s3_bucket)
     logging.info(f"Checked S3 bucket '{s3_bucket}', created if it didn't exist.")
@@ -774,11 +609,20 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
     s3_files = get_s3_filenames(s3_bucket)
     logging.info(f"Retrieved {len(s3_files)} files from S3 bucket '{s3_bucket}'.")
 
+    total_tournaments_to_process = 0
+    for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"], all_tournaments_df["event_slug"],
+                                              all_tournaments_df["Tier"]):
+        json_filename = f"{tourney_slug}.json"
+        if json_filename not in s3_files and (tier not in excluded_tiers):
+            total_tournaments_to_process += 1
+    logging.info(f"Total tournaments:{total_tournaments_to_process}")
     # Process each tournament entry
+    processed_idx = 0
     for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"], all_tournaments_df["event_slug"], all_tournaments_df["Tier"]):
         json_filename = f"{tourney_slug}.json"
-        if json_filename not in s3_files and passes_tier_filters(tier):
+        if json_filename not in s3_files and (tier not in excluded_tiers):
             logging.info(f"Processing tournament '{tourney_slug}' with event '{event_slug}' and tier '{tier}'.")
+            logging.info(f"{processed_idx}/{total_tournaments_to_process}")
             
             # Retrieve tournament details
             try:
@@ -853,6 +697,14 @@ def query_tournaments(table_name, tier=None, start_date=None, end_date=None):
 
 
 
-def passes_tier_filters(tier):
-    return tier not in ["D"]
 
+
+# '6': 'P',
+#     '5+': 'S+',
+#     '5': 'S',
+#     '4+': 'A+',
+#     '4': 'A',
+#     '3+': 'B+',
+#     '3': 'B',
+#     '2': 'C',
+#     '1': 'D'
