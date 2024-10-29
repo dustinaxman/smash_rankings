@@ -246,19 +246,15 @@ query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
         total
       }
       nodes {
-        id
         slots {
-          id
           entrant {
             id
             name
           }
           standing {
-            id
             placement
             stats {
               score {
-                label
                 value
               }
             }
@@ -355,7 +351,7 @@ def get_all_sets(event_id, token):
         if retrieved_sets >= total_sets:
             break
 
-        time.sleep(0.75)  # Wait for 2 seconds before fetching the next page
+        time.sleep(0.75)
         page += 1
 
     return start_time, all_sets
