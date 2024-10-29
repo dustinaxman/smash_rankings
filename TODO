@@ -1,0 +1,114 @@
+
+tournament_folder_path = TOURNAMENT_FOLDER_PATH
+all_tournaments_df = get_major_tournaments_from_folder(tournament_folder_path)
+print(all_tournaments_df)
+print(all_tournaments_df[~all_tournaments_df["Tier"].isin(["D", "1"])])
+print(all_tournaments_df[~all_tournaments_df["Tier"].isin(["D", "C", "B", "B+", "A", "A+"])])
+print(set(all_tournaments_df["Tier"]))
+
+# for tiers in [], get:
+# tourney_slug, event_slug
+# tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
+
+# save to a file {tourney_slug}.json
+# with this:  json.dumps({"link": link, event: "event_slug", "tier": tier, "date": event_start_time, "name": tournament_name, "sets": sets})
+
+# EXTRACTED_TOURNAMENTS_PATH
+
+
+#https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/export?format=xlsx&gid=960683289#gid=960683289
+
+#google_sheets_url = "https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=960683289#gid=960683289"
+
+
+
+
+# google_sheets_url = "https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=639215028#gid=639215028"
+# sheet_name = "TTS by Date (2024.2)"
+# 
+
+# download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file)
+
+
+
+# print(process_tournament_file(output_file))
+
+
+
+# run pull on all p and S+ S tiers 
+
+# look at the files and check for errors
+
+
+
+
+
+
+# run pull on all 1174 tiers AND process get sets put in s3 etc put in ddb
+
+
+
+
+
+
+#todo: 
+
+# https://chatgpt.com/share/671aeff1-56a8-8008-a0b7-6b7b771290d1
+
+"""
+
+
+google_sheets_url = 'https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=SHEET_GID'  # Replace with your Google Sheet URL
+sheet_name = 'Tab Name'  # Replace with the name of the sheet to keep
+output_file = 'output.xlsx'
+
+
+
+s3_bucket = smash_ranking_tournament_data
+dynamo_db_table = smash_ranking_tournament_table
+
+# if given a link to the doc
+    output_file = 'output_tmp.xlsx'
+    download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file)
+    all_tournaments_df = process_tournament_file(output_file)
+# elif given a path to a folder:
+    all_tournaments_df = get_major_tournaments_from_folder(tournament_folder_path)
+# if s3 bucket does not exist, then create it
+# if ddb does not exist, then create it
+for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"].to_list(), all_tournaments_df["event_slug"].to_list(), all_tournaments_df["Tier"].to_list()):
+    if f"{tourney_slug}.json" not in get_s3_filenames(bucket_name, prefix='') and passes_tier_filters(tier):
+        tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
+        save to a file {tourney_slug}.json
+        with this:  json.dumps({"link": link, event: "event_slug", "tier": tier, "date": event_start_time, "name": tournament_name, "sets": sets})
+        upload this file to the s3 bucket
+        update the list of tourney dates, slugs, names, and tiers in ddb (dynamo_db_table) (additionally, in a separate function, give code to pull all of the records (each tournament) in the ddb, or to filter by tier, or between two dates)
+
+"""
+
+
+
+# Make api that takes set of tournament slugs and returns players and scores
+# make it also take tier and date filters and return list of all tournaments as keys in dict with each having True or False value
+# #Glicko/Glicko-2???
+# #Bayesian Elo
+
+
+# Make a good looking react website that makes a request to get a list of tournament names and information (Tier (P, S, or A), date, and unique_id)
+# In one tab, show all of these tournaments and their information (just tournament name, date, and tier) in a nice table where all rows are initially sage green
+# At the top, give a field where the user can select a start and end date.  If not selected, the start date should default to Nov 1 2018 and the end date should default to today.
+# They should also be given a field to select one or more Tiers. Finally they will be given a button "Compute rankings" next to a field selector "Type of ranking" with 3 values "Elo", "Bradley-Terry", and "TrueSkill". 
+# As they change their selections in all of the fields except "Type of ranking", different rows in the table of tournaments should turn from green to pale red dynamically (make it pretty).  
+# Tournaments whose date is in the date range and whose tier is in the set of tiers that the user has selected will be green, the rest will be red.  
+# When the user presses the "Compute rankings" button, take the unique_ids of all of the tournaments and make a request to this api:
+
+
+# the response will look like this:
+# [{"player": "Mkleo", "score": 2000, "score_variance": 50}, {"player": "Tweek", "score": 1800, "score_variance": 150}, {"player": "Shuton", "score": 1600, "score_variance": 50}]
+
+
+# In a new tab, display this sorted (by score, with largest at the top) list of rankings in a pretty table. Show each player, their score, and their score variance for the top 100 players.
+# At the top of this tab, show the parameters for this ranking (the date range and the selected tiers).
+
+# Output the file name and exact contents of each file in the react app.
+
+
