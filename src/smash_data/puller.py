@@ -7,8 +7,12 @@ import boto3
 import re
 from openpyxl import load_workbook
 from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Key
 import json
 import logging
+from backoff import on_exception, expo
+from ratelimit import limits, RateLimitException
+from src.utils.constants import tier_mapper, dynamo_db_table_name, s3_bucket
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,23 +22,6 @@ s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
 token = os.environ["STARTGG_API_KEY"] 
-
-
-s3_bucket = 'smash-ranking-tournament-data'
-dynamo_db_table = 'smash-ranking-tournament-table'
-
-tier_mapper = {
-    '6': 'P',
-    '5+': 'S+',
-    '5': 'S',
-    '4+': 'A+',
-    '4': 'A',
-    '3+': 'B+',
-    '3': 'B',
-    '2': 'C',
-    '1': 'D'
-}
-
 
 
 get_events_query = """
@@ -60,7 +47,9 @@ query getEventId($slug: String) {
 }
 """
 
-
+@limits(calls=80, period=60)
+@on_exception(expo, RateLimitException, max_tries=5)
+@on_exception(expo, Exception, max_tries=5)
 def get_event_id(overall_slug, token):
     url = "https://api.start.gg/gql/alpha"
     headers = {
@@ -68,34 +57,17 @@ def get_event_id(overall_slug, token):
         "Content-Type": "application/json"
     }
 
-    # Prepare the variables for the query
-    variables = {
-        "slug": overall_slug
-    }
+    variables = {"slug": overall_slug}
 
-    # Retry logic
-    max_retries = 5
-    retries = 0
-
-    while retries < max_retries:
-        response = requests.post(url, json={'query': get_event_id_from_slug_query, 'variables': variables}, headers=headers)
-        time.sleep(0.5)
-        if response.status_code == 200:
-            data = response.json()
-            # Check if the data exists and process it
-            if "data" in data and "event" in data["data"] and "id" in data["data"]["event"]:
-                # Extract and return the events
-                return data["data"]["event"]["id"]
-            else:
-                raise Exception("Invalid response structure or missing data")
-        
-        # If the request fails, retry
-        retries += 1
-        print(f"Request failed with status {response.status_code}. Retrying {retries}/{max_retries}...")
-        time.sleep(5)  # Wait for 5 seconds before retrying
-
-    # If all retries fail, raise an exception
-    raise Exception(f"Query failed after {max_retries} retries with status code {response.status_code}: {response.text}")
+    response = requests.post(url, json={'query': get_event_id_from_slug_query, 'variables': variables}, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        if "data" in data and "event" in data["data"] and "id" in data["data"]["event"]:
+            return data["data"]["event"]["id"]
+        else:
+            raise Exception("Invalid response structure or missing data")
+    else:
+        raise Exception(f"Request failed with status {response.status_code}")
 
 
 def weighted_edit_distance(s1, s2, digit_weight):
@@ -138,6 +110,9 @@ def find_closest_strings(list1, list2, digit_weight=1.5):
     return closest_strings
 
 
+@limits(calls=80, period=60)
+@on_exception(expo, RateLimitException, max_tries=5)
+@on_exception(expo, Exception, max_tries=5)
 def get_tournament_events(tourney_slug, token, videogame_id=1386):
     url = "https://api.start.gg/gql/alpha"
     headers = {
@@ -145,37 +120,21 @@ def get_tournament_events(tourney_slug, token, videogame_id=1386):
         "Content-Type": "application/json"
     }
 
-    # Prepare the variables for the query
     variables = {
         "tourneySlug": tourney_slug,
         "videogameId": [videogame_id]
     }
 
-    # Retry logic
-    max_retries = 5
-    retries = 0
-
-    while retries < max_retries:
-        response = requests.post(url, json={'query': get_events_query, 'variables': variables}, headers=headers)
-        time.sleep(0.5)
-        if response.status_code == 200:
-            data = response.json()
-            # Check if the data exists and process it
-            if "data" in data and "tournament" in data["data"] and "events" in data["data"]["tournament"]:
-                # Extract and return the events
-                tournament_name = data["data"]["tournament"]["name"]
-                return tournament_name, [{"name": event["name"].lower(), "id": event["id"]} for event in data["data"]["tournament"]["events"]]
-            else:
-                raise Exception("Invalid response structure or missing data")
-        
-        # If the request fails, retry
-        retries += 1
-        print(f"Request failed with status {response.status_code}. Retrying {retries}/{max_retries}...")
-        time.sleep(5)  # Wait for 5 seconds before retrying
-
-    # If all retries fail, raise an exception
-    raise Exception(f"Query failed after {max_retries} retries with status code {response.status_code}: {response.text}")
-
+    response = requests.post(url, json={'query': get_events_query, 'variables': variables}, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        if "data" in data and "tournament" in data["data"] and "events" in data["data"]["tournament"]:
+            tournament_name = data["data"]["tournament"]["name"]
+            return tournament_name, [{"name": event["name"].lower(), "id": event["id"]} for event in data["data"]["tournament"]["events"]]
+        else:
+            raise Exception("get_tournament_events Invalid response structure or missing data")
+    else:
+        raise Exception(f"get_tournament_events Request failed with status {response.status_code}")
 
 def select_correct_event(all_events_for_tourney):
     exclude_keywords = [
@@ -271,7 +230,13 @@ def process_set_data(set_data):
         "winner_id": winner_id
     }
 
+@limits(calls=80, period=60)
+@on_exception(expo, RateLimitException, max_tries=5)
+def rate_limited_request_post(url, json, headers):
+    return requests.post(url, json=json, headers=headers)
 
+@on_exception(expo, Exception, max_tries=5)
+@on_exception(expo, ValueError, max_tries=5)
 def get_all_sets(event_id, token):
     url = "https://api.start.gg/gql/alpha"
     headers = {
@@ -281,7 +246,7 @@ def get_all_sets(event_id, token):
 
     all_sets = []
     page = 1
-    per_page = 60  # Start with 50, adjust based on your requirements
+    per_page = 60  # Adjust as needed
 
     while True:
         variables = {
@@ -290,37 +255,23 @@ def get_all_sets(event_id, token):
             "perPage": per_page
         }
 
-        # Retry logic
-        max_retries = 5
-        retries = 0
-        while retries < max_retries:
-            response = requests.post(url, json={'query': query, 'variables': variables}, headers=headers)
-            if response.status_code == 200:
-                break  # If the request is successful, break out of the retry loop
-            else:
-                retries += 1
-                print(f"Request failed with status {response.status_code}. Retrying {retries}/{max_retries}...")
-                time.sleep(5)  # Wait for 5 seconds before retrying
-
-        if retries == max_retries:
-            raise Exception(f"Query failed after {max_retries} retries with status code {response.status_code}: {response.text}")
+        response = rate_limited_request_post(url, json={'query': query, 'variables': variables}, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"get_all_sets Request failed with status {response.status_code}")
 
         data = response.json()
         if not data.get("success", True) or "data" not in data:
-            print(data)
-            raise ValueError(f"No success or no data in response: {str(response)}")
-        sets = data['data']['event']['sets']['nodes']
+            raise ValueError(f"get_all_sets No success or no data in response: {str(response)}")
 
+        sets = data['data']['event']['sets']['nodes']
         start_time = datetime.utcfromtimestamp(data['data']['event']['startAt'])
 
-        # Process each set and append to the all_sets list
         total_objects = 0
         for set_data in sets:
             processed_set = process_set_data(set_data)
             total_objects += count_total_objects_in_set(set_data)
             all_sets.append(processed_set)
 
-        # Check if we have retrieved all sets
         total_sets = data['data']['event']['sets']['pageInfo']['total']
         retrieved_sets = len(all_sets)
 
@@ -329,8 +280,7 @@ def get_all_sets(event_id, token):
         if retrieved_sets >= total_sets:
             break
 
-        time.sleep(0.75)
-        page += 1
+        page += 1  # Move to the next page
 
     return start_time, all_sets
 
@@ -583,13 +533,31 @@ def update_dynamodb(table_name, item_data):
     table.put_item(Item=item_data)
     print(f"Updated DynamoDB with {item_data['tourney_slug']}")
 
+
+
+def check_ddb_for_event(table_name, tourney_slug, event_slug):
+    table = dynamodb.Table(table_name)
+
+    try:
+        response = table.query(
+            KeyConditionExpression=Key('tourney_slug').eq(tourney_slug),
+            FilterExpression=Key('event_slug').eq(event_slug),
+            Limit=1  # Limit results to 1 for faster performance if it exists
+        )
+        # Check if any items were returned
+        return len(response.get('Items', [])) > 0
+
+    except ClientError as e:
+        print(f"Error querying DynamoDB: {e}")
+        return False
+
 def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=None, excluded_tiers=("D", "C", "B", "B+", "A", "A+")):
     # Ensure S3 bucket and DynamoDB table exist
     create_bucket(s3_bucket)
     logging.info(f"Checked S3 bucket '{s3_bucket}', created if it didn't exist.")
     
-    create_table(dynamo_db_table)
-    logging.info(f"Checked DynamoDB table '{dynamo_db_table}', created if it didn't exist.")
+    create_table(dynamo_db_table_name)
+    logging.info(f"Checked DynamoDB table '{dynamo_db_table_name}', created if it didn't exist.")
 
     # Load tournaments data from Google Sheets or folder path
     if google_sheets_url:
@@ -612,18 +580,18 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
     total_tournaments_to_process = 0
     for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"], all_tournaments_df["event_slug"],
                                               all_tournaments_df["Tier"]):
-        json_filename = f"{tourney_slug}.json"
-        if json_filename not in s3_files and (tier not in excluded_tiers):
+        json_filename = f"{tourney_slug}-{event_slug}.json"
+        if json_filename not in s3_files and (tier not in excluded_tiers) and not check_ddb_for_event(dynamo_db_table_name, tourney_slug, event_slug):
             total_tournaments_to_process += 1
     logging.info(f"Total tournaments:{total_tournaments_to_process}")
     # Process each tournament entry
     processed_idx = 0
     for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"], all_tournaments_df["event_slug"], all_tournaments_df["Tier"]):
-        json_filename = f"{tourney_slug}.json"
-        if json_filename not in s3_files and (tier not in excluded_tiers):
+        json_filename = f"{tourney_slug}-{event_slug}.json"
+        if (json_filename not in s3_files) and (tier not in excluded_tiers) and not check_ddb_for_event(dynamo_db_table_name, tourney_slug, event_slug):
             logging.info(f"Processing tournament '{tourney_slug}' with event '{event_slug}' and tier '{tier}'.")
             logging.info(f"{processed_idx}/{total_tournaments_to_process}")
-            
+            processed_idx += 1
             # Retrieve tournament details
             try:
                 tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
@@ -637,7 +605,7 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
                 "link": google_sheets_url,
                 "event": event_slug,
                 "tier": tier,
-                "date": event_start_time,
+                "date": event_start_time.isoformat(),
                 "name": tournament_name,
                 "sets": sets
             }
@@ -663,35 +631,15 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
                 "tourney_slug": tourney_slug,
                 "event_slug": event_slug,
                 "tier": tier,
-                "date": event_start_time,
+                "date": event_start_time.isoformat(),
                 "name": tournament_name
             }
             try:
-                update_dynamodb(dynamo_db_table, dynamo_item)
-                logging.info(f"Updated DynamoDB table '{dynamo_db_table}' with tournament '{tourney_slug}'.")
+                update_dynamodb(dynamo_db_table_name, dynamo_item)
+                logging.info(f"Updated DynamoDB table '{dynamo_db_table_name}' with tournament '{tourney_slug}'.")
             except Exception as e:
                 logging.error(f"Failed to update DynamoDB for '{tourney_slug}': {e}")
 
-# DynamoDB Querying Function
-def query_tournaments(table_name, tier=None, start_date=None, end_date=None):
-    table = dynamodb.Table(table_name)
-    filter_expression = []
-    expression_values = {}
-
-    if tier:
-        filter_expression.append('tier = :tier')
-        expression_values[':tier'] = tier
-    if start_date and end_date:
-        filter_expression.append('date BETWEEN :start_date AND :end_date')
-        expression_values[':start_date'] = start_date
-        expression_values[':end_date'] = end_date
-
-    response = table.scan(
-        FilterExpression=' AND '.join(filter_expression),
-        ExpressionAttributeValues=expression_values
-    ) if filter_expression else table.scan()
-
-    return response['Items']
 
 
 
@@ -699,12 +647,4 @@ def query_tournaments(table_name, tier=None, start_date=None, end_date=None):
 
 
 
-# '6': 'P',
-#     '5+': 'S+',
-#     '5': 'S',
-#     '4+': 'A+',
-#     '4': 'A',
-#     '3+': 'B+',
-#     '3': 'B',
-#     '2': 'C',
-#     '1': 'D'
+
