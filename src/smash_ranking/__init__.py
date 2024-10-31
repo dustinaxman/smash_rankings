@@ -2,25 +2,100 @@ import trueskill as ts
 from collections import defaultdict
 import choix
 
+# def process_game_sets_to_simple_format(game_sets, evaluation_level):
+#     simple_game_sets = []
+#     id_to_player_name = defaultdict(set)
+#     player_to_id = defaultdict(set)
+#     for game_set in game_sets:
+#         player_1_name = game_set["player_1"]
+#         player_2_name = game_set["player_2"]
+#         player_1_id = game_set["id_1"]
+#         player_2_id = game_set["id_2"]
+#         player1_uniq_representation = f"{player_1_id}"
+#         player2_uniq_representation = f"{player_2_id}"
+#         if evaluation_level == "games":
+#             score1 = game_set["score_1"]
+#             score2 = game_set["score_2"]
+#             score1 = 0 if score1 is None else score1
+#             score2 = 0 if score2 is None else score2
+#             if (score1 == 0 and score2 == 0) or score1 < 0 or score2 < 0:
+#                 continue
+#         elif evaluation_level == "sets":
+#             score1 = 1 if player_1_id == game_set["winner_id"] else 0
+#             score2 = 1 if player_2_id == game_set["winner_id"] else 0
+#         id_to_player_name[player_1_id].add(player_1_name)
+#         id_to_player_name[player_2_id].add(player_2_name)
+#         player_to_id[player_1_name].add(player_1_id)
+#         player_to_id[player_2_name].add(player_2_id)
+#         #very simple code to find first example of two sets where the same player has multiple different ids.  Print out both game_set dicts
+#         simple_game_sets.append([player1_uniq_representation, player2_uniq_representation, score1, score2])
+#     return simple_game_sets, id_to_player_name, player_to_id
+
 def process_game_sets_to_simple_format(game_sets, evaluation_level):
     simple_game_sets = []
+    id_to_player_name = defaultdict(set)
+    player_to_id = defaultdict(set)
+    found_inconsistent_example = False  # Flag to stop after finding the first inconsistency
+
     for game_set in game_sets:
-        player_1_name = game_set["player_1"]
-        player_2_name = game_set["player_2"]
-        player_1_id = game_set["id_1"]
-        player_2_id = game_set["id_2"]
-        player1_uniq_representation = f"{player_1_name}({player_1_id})"
-        player2_uniq_representation = f"{player_2_name}({player_2_id})"
+        player_1_name = str(game_set["player_1"])
+        player_2_name = str(game_set["player_2"])
+        player_1_id = int(game_set["id_1"])
+        player_2_id = int(game_set["id_2"])
+        player1_uniq_representation = f"{player_1_name}"
+        player2_uniq_representation = f"{player_2_name}"
+        if game_set["score_1"] is None or game_set["score_2"] is None:
+            continue
+        if (game_set["score_1"] == 0 and game_set["score_2"] == 0) or game_set["score_1"] < 0 or game_set["score_2"] < 0:
+            continue
         if evaluation_level == "games":
             score1 = game_set["score_1"]
             score2 = game_set["score_2"]
-            if score1 == 0 and score2 == 0:
+            score1 = 0 if score1 is None else score1
+            score2 = 0 if score2 is None else score2
+            if (score1 == 0 and score2 == 0) or score1 < 0 or score2 < 0:
                 continue
         elif evaluation_level == "sets":
             score1 = 1 if player_1_id == game_set["winner_id"] else 0
             score2 = 1 if player_2_id == game_set["winner_id"] else 0
+
+        # Track player name and ID associations
+        id_to_player_name[player_1_id].add(player_1_name)
+        id_to_player_name[player_2_id].add(player_2_name)
+        player_to_id[player_1_name].add(player_1_id)
+        player_to_id[player_2_name].add(player_2_id)
+
+
+        # Very simple code to find the first example of two sets where the same player has multiple different IDs
+        # Print out both `game_set` dictionaries
+        # if not found_inconsistent_example:
+        #     for player_name, ids in player_to_id.items():
+        #         if len(ids) > 1:  # If the player has more than one unique ID
+        #             # Find two sets with different IDs for the same player
+        #             print(player_name, ids)
+        #             conflicting_sets = [
+        #                 gs for gs in game_sets if (gs["player_1"] == player_name and gs["id_1"] in ids) or
+        #                                           (gs["player_2"] == player_name and gs["id_2"] in ids)
+        #             ]
+        #             dogs = [
+        #                 gs for gs in game_sets if (gs["id_1"] == 18118445) or
+        #                                           (gs["id_2"] == 18118445)
+        #             ]
+        #             print(dogs[0]["player_1"] == player_name)
+        #
+        #             if len(conflicting_sets) >= 2:
+        #                 print("Example sets with inconsistent IDs for player:", player_name)
+        #                 print(conflicting_sets)
+        #                 print(conflicting_sets[1])
+        #                 print("what")
+        #                 print(dogs)
+        #                 found_inconsistent_example = True
+        #                 break
+
         simple_game_sets.append([player1_uniq_representation, player2_uniq_representation, score1, score2])
-    return simple_game_sets
+
+    return simple_game_sets, id_to_player_name, player_to_id
+
 
 def run_bradley_terry(simple_game_sets):
     comparisons = []
@@ -113,16 +188,16 @@ def run_trueskill(simple_game_sets):
 
 def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
     if ranking_to_run == "elo":
-        simple_game_sets = process_game_sets_to_simple_format(game_sets, evaluation_level)
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
         ranking = run_elo(simple_game_sets)
     elif ranking_to_run == "trueskill":
-        simple_game_sets = process_game_sets_to_simple_format(game_sets, evaluation_level)
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
         ranking = run_trueskill(simple_game_sets)
     elif ranking_to_run == "bradleyterry":
         game_sets_filtered = filter_game_sets(game_sets, threshold_sets=20, threshold_games=None)
-        simple_game_sets_filtered = process_game_sets_to_simple_format(game_sets_filtered, evaluation_level)
+        simple_game_sets_filtered, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets_filtered, evaluation_level)
         ranking = run_bradley_terry(simple_game_sets_filtered)
-    return ranking
+    return ranking, id_to_player_name, player_to_id
 
 
 def find_incomplete_players(game_sets, sets_threshold=None, games_threshold=None):

@@ -116,5 +116,8 @@ def display_rating(ratings_dict, threshold=100):
     print("|--------|-------------|----------|")
     for record in sorted(ratings, key=lambda a: a["rating"], reverse=True)[:threshold]:
         player, rating, variance = record["player"], record["rating"], record["variance"]
-        print(f"| {player} | {rating:.2f} | {variance:.2f} |")
+        if variance is not None:
+            print(f"| {player} | {rating:.2f} | {variance:.2f} |")
+        else:
+            print(f"| {player} | {rating:.2f} | None |")
 

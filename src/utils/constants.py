@@ -1,6 +1,6 @@
 from pathlib import Path
 
-LOCAL_TOURNAMENT_DATA_DIR = str(Path.home()/"all_smash_tournament_data")
+LOCAL_TOURNAMENT_DATA_DIR = Path.home()/"all_smash_tournament_data"
 
 s3_bucket = 'smash-ranking-tournament-data'
 dynamo_db_table_name = 'smash-ranking-tournament-table'
