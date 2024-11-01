@@ -1,4 +1,99 @@
 
+google_sheets_url = 'https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=SHEET_GID'  # Replace with your Google Sheet URL
+sheet_name = 'Tab Name'  # Replace with the name of the sheet to keep
+output_file = 'output.xlsx'
+
+
+
+s3_bucket = smash_ranking_tournament_data
+dynamo_db_table = smash_ranking_tournament_table
+
+# if given a link to the doc
+    output_file = 'output_tmp.xlsx'
+    download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file)
+    all_tournaments_df = process_tournament_file(output_file)
+# elif given a path to a folder:
+    all_tournaments_df = get_major_tournaments_from_folder(tournament_folder_path)
+# if s3 bucket does not exist, then create it
+# if ddb does not exist, then create it
+for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"].to_list(), all_tournaments_df["event_slug"].to_list(), all_tournaments_df["Tier"].to_list()):
+    if f"{tourney_slug}.json" not in get_s3_filenames(bucket_name, prefix='') and passes_tier_filters(tier):
+        tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
+        save to a file {tourney_slug}.json
+        with this:  json.dumps({"link": link, event: "event_slug", "tier": tier, "date": event_start_time, "name": tournament_name, "sets": sets})
+        upload this file to the s3 bucket
+        update the list of tourney dates, slugs, names, and tiers in ddb (dynamo_db_table) (additionally, in a separate function, give code to pull all of the records (each tournament) in the ddb, or to filter by tier, or between two dates)
+
+"""
+
+
+
+# # Display final ratings
+# print("Elo Ratings:")
+# for player, rating in sorted(elo_ratings.items(), key=lambda a: a[1], reverse=True):
+#     print(f"{player}: {rating:.2f}")
+#
+#
+# # Bradley-Terry Ratings as a Markdown Table
+# print("## Bradley-Terry Ratings")
+# print("| Player | Rating |")
+# print("|--------|--------|")
+# for player, rating in sorted(zip(players, ratings), key=lambda a: a[1], reverse=True):
+#     print(f"| {player} | {rating:.2f} |")
+#
+# # TrueSkill Ratings as a Markdown Table
+# print("\n## TrueSkill Ratings")
+# print("| Player | Mu (Rating) | Sigma (Uncertainty) |")
+# print("|--------|-------------|--------------------|")
+# for player, rating in sorted(ts_ratings.items(), key=lambda a: a[1].mu, reverse=True):
+#     print(f"| {player} | {rating.mu:.2f} | {rating.sigma:.2f} |")
+#
+
+
+
+
+tournament_folder_path = TOURNAMENT_FOLDER_PATH
+all_tournaments_df = get_major_tournaments_from_folder(tournament_folder_path)
+print(all_tournaments_df)
+print(all_tournaments_df[~all_tournaments_df["Tier"].isin(["D", "1"])])
+print(all_tournaments_df[~all_tournaments_df["Tier"].isin(["D", "C", "B", "B+", "A", "A+"])])
+print(set(all_tournaments_df["Tier"]))
+
+# for tiers in [], get:
+# tourney_slug, event_slug
+# tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
+
+# save to a file {tourney_slug}.json
+# with this:  json.dumps({"link": link, event: "event_slug", "tier": tier, "date": event_start_time, "name": tournament_name, "sets": sets})
+
+# EXTRACTED_TOURNAMENTS_PATH
+
+
+#https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/export?format=xlsx&gid=960683289#gid=960683289
+
+#google_sheets_url = "https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=960683289#gid=960683289"
+
+
+
+
+# google_sheets_url = "https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=639215028#gid=639215028"
+# sheet_name = "TTS by Date (2024.2)"
+# 
+
+# download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file)
+
+
+
+# print(process_tournament_file(output_file))
+
+
+from src.smash_data.puller import process_tournaments
+TOURNAMENT_FOLDER_PATH = "/Users/deaxman/Downloads/all_smash_rankings/"
+process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=TOURNAMENT_FOLDER_PATH)
+
+
+
+
 
 #player_name_to_tot_and_std_BEFORE_SWT = copy.copy(player_name_to_tot_and_std)
 

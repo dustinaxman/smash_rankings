@@ -12,16 +12,41 @@ import json
 import logging
 from backoff import on_exception, expo
 from ratelimit import limits, RateLimitException
-from src.utils.constants import tier_mapper, dynamo_db_table_name, s3_bucket
+from src.utils.constants import tier_mapper, dynamo_db_table_name, s3_bucket, LOG_FOLDER_PATH
+import subprocess
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
+log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
 
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        logging.StreamHandler(),                    # Console handler
+                        logging.FileHandler(log_file_path, mode='a')  # File handler with append mode
+                    ])
+
+
+def get_parameter_from_ssm(parameter_name):
+    ssm = boto3.client('ssm')
+    try:
+        response = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
+        return response['Parameter']['Value']
+    except ClientError as e:
+        print(f"Error fetching parameter {parameter_name}: {e}")
+        return None
+
+if not os.environ.get("STARTGG_API_KEY"):
+    startgg_api_key = get_parameter_from_ssm("STARTGG_API_KEY")
+    if startgg_api_key:
+        os.environ["STARTGG_API_KEY"] = startgg_api_key
+
+token = os.environ.get("STARTGG_API_KEY")
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
-token = os.environ["STARTGG_API_KEY"] 
+
 
 
 get_events_query = """
@@ -185,8 +210,14 @@ query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
       nodes {
         slots {
           entrant {
-            id
             name
+            participants{
+                player{
+                    user{
+                        discriminator
+                    }
+                }
+            }
           }
           standing {
             placement
@@ -206,11 +237,17 @@ query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
 # Function to extract player data from the set
 def process_set_data(set_data):
     player_1 = set_data['slots'][0]['entrant']['name']
-    id_1 = set_data['slots'][0]['entrant']['id']
+    try:
+        id_1 = set_data['slots'][0]['entrant']['participants'][0]["player"]["user"]["discriminator"]
+    except:
+        id_1 = None
     score_1 = set_data['slots'][0]['standing']['stats']['score']['value']
 
     player_2 = set_data['slots'][1]['entrant']['name']
-    id_2 = set_data['slots'][1]['entrant']['id']
+    try:
+        id_2 = set_data['slots'][1]['entrant']['participants'][0]["player"]["user"]["discriminator"]
+    except:
+        id_2 = None
     score_2 = set_data['slots'][1]['standing']['stats']['score']['value']
 
     # Determine the winner based on the placement field
@@ -246,7 +283,7 @@ def get_all_sets(event_id, token):
 
     all_sets = []
     page = 1
-    per_page = 60  # Adjust as needed
+    per_page = 40  # Adjust as needed
 
     while True:
         variables = {

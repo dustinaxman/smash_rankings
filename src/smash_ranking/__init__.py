@@ -1,6 +1,9 @@
 import trueskill as ts
 from collections import defaultdict
+import networkx as nx
 import choix
+import numpy as np
+import logging
 
 # def process_game_sets_to_simple_format(game_sets, evaluation_level):
 #     simple_game_sets = []
@@ -33,17 +36,16 @@ import choix
 
 def process_game_sets_to_simple_format(game_sets, evaluation_level):
     simple_game_sets = []
-    id_to_player_name = defaultdict(set)
-    player_to_id = defaultdict(set)
-    found_inconsistent_example = False  # Flag to stop after finding the first inconsistency
+    id_to_player_name = dict()
+    player_to_id = dict()
 
     for game_set in game_sets:
         player_1_name = str(game_set["player_1"])
         player_2_name = str(game_set["player_2"])
         player_1_id = int(game_set["id_1"])
         player_2_id = int(game_set["id_2"])
-        player1_uniq_representation = f"{player_1_name}"
-        player2_uniq_representation = f"{player_2_name}"
+        if player_1_id is None or player_2_id is None:
+            continue
         if game_set["score_1"] is None or game_set["score_2"] is None:
             continue
         if (game_set["score_1"] == 0 and game_set["score_2"] == 0) or game_set["score_1"] < 0 or game_set["score_2"] < 0:
@@ -60,59 +62,120 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
             score2 = 1 if player_2_id == game_set["winner_id"] else 0
 
         # Track player name and ID associations
-        id_to_player_name[player_1_id].add(player_1_name)
-        id_to_player_name[player_2_id].add(player_2_name)
-        player_to_id[player_1_name].add(player_1_id)
-        player_to_id[player_2_name].add(player_2_id)
-
-
-        # Very simple code to find the first example of two sets where the same player has multiple different IDs
-        # Print out both `game_set` dictionaries
-        # if not found_inconsistent_example:
-        #     for player_name, ids in player_to_id.items():
-        #         if len(ids) > 1:  # If the player has more than one unique ID
-        #             # Find two sets with different IDs for the same player
-        #             print(player_name, ids)
-        #             conflicting_sets = [
-        #                 gs for gs in game_sets if (gs["player_1"] == player_name and gs["id_1"] in ids) or
-        #                                           (gs["player_2"] == player_name and gs["id_2"] in ids)
-        #             ]
-        #             dogs = [
-        #                 gs for gs in game_sets if (gs["id_1"] == 18118445) or
-        #                                           (gs["id_2"] == 18118445)
-        #             ]
-        #             print(dogs[0]["player_1"] == player_name)
-        #
-        #             if len(conflicting_sets) >= 2:
-        #                 print("Example sets with inconsistent IDs for player:", player_name)
-        #                 print(conflicting_sets)
-        #                 print(conflicting_sets[1])
-        #                 print("what")
-        #                 print(dogs)
-        #                 found_inconsistent_example = True
-        #                 break
-
-        simple_game_sets.append([player1_uniq_representation, player2_uniq_representation, score1, score2])
+        id_to_player_name[player_1_id] = player_1_name
+        id_to_player_name[player_2_id] = player_2_name
+        player_to_id[player_1_name] = player_1_id
+        player_to_id[player_2_name] = player_2_id
+        simple_game_sets.append([player_1_id, player_2_id, score1, score2])
 
     return simple_game_sets, id_to_player_name, player_to_id
 
 
-def run_bradley_terry(simple_game_sets):
-    comparisons = []
-    for player1, player2, score1, score2 in simple_game_sets:
-        comparisons += [(player1, player2)] * int(score1)
-        comparisons += [(player2, player1)] * int(score2)
+#TODO: # #Glicko/Glicko-2???
+#TODO:  #Bayesian Elo
+def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
+    """
+    Computes Bradley-Terry ratings from game data.
 
-    # Map players to indices
-    players = list(set([p for match in simple_game_sets for p in match[:2]]))
+    Parameters:
+    - simple_game_sets: list of tuples (player1, player2, score1, score2)
+        Each tuple represents a match between player1 and player2 with their respective scores.
+    - max_iter: int
+        Maximum number of iterations for the optimizer.
+    - tol: float
+        Tolerance for convergence.
+    - alpha: float
+        Regularization parameter to prevent overfitting and help convergence.
+
+    Returns:
+    - ratings: List of dictionaries with 'player', 'rating', and 'variance' keys.
+    """
+
+    # Configure logging
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    # Add console handler to logger
+    if not logger.handlers:
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(levelname)s: %(message)s')
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+    # Step 1: Build comparisons list and directed graph
+    comparisons = []
+    G = nx.DiGraph()
+
+    for player1, player2, score1, score2 in simple_game_sets:
+        score1 = int(score1)
+        score2 = int(score2)
+
+        # Skip matches with no score
+        if score1 == 0 and score2 == 0:
+            continue
+
+        # Add edges for wins
+        if score1 > 0:
+            comparisons.extend([(player1, player2)] * score1)
+            G.add_edge(player1, player2)
+        if score2 > 0:
+            comparisons.extend([(player2, player1)] * score2)
+            G.add_edge(player2, player1)
+
+    # Check if graph is empty
+    if G.number_of_nodes() == 0:
+        logger.error("No valid games provided.")
+        raise ValueError("No valid games provided.")
+
+    # Step 2: Find strongly connected components
+    sccs = list(nx.strongly_connected_components(G))
+
+    # Sort components by size
+    sccs.sort(key=lambda scc: len(scc), reverse=True)
+    largest_scc = sccs[0]
+
+    # Log the size of the largest SCC
+    logger.info("Largest strongly connected component size: {}".format(len(largest_scc)))
+
+    # Check if largest SCC is too small
+    if len(largest_scc) < 2:
+        logger.error("Largest strongly connected component is too small to compute ratings.")
+        raise ValueError("Largest strongly connected component is too small to compute ratings.")
+
+    # Step 3: Filter comparisons to keep only those within the largest SCC
+    comparisons_filtered = [(p1, p2) for p1, p2 in comparisons if p1 in largest_scc and p2 in largest_scc]
+
+    # Step 4: Map players to indices within the largest SCC
+    players = list(largest_scc)
     player_idx = {p: i for i, p in enumerate(players)}
 
-    # Convert comparisons to numeric indices
-    comparisons_numeric = [(player_idx[p1], player_idx[p2]) for p1, p2 in comparisons]
+    # Step 5: Convert comparisons to numeric indices
+    comparisons_numeric = [(player_idx[p1], player_idx[p2]) for p1, p2 in comparisons_filtered]
 
-    # Fit Bradley-Terry model
-    bt_ratings = choix.ilsr_pairwise(len(players), comparisons_numeric)
+    # Step 6: Run Bradley-Terry model using MM algorithm with regularization
+    initial_params = np.zeros(len(players))  # Start with zero log-abilities
+
+    try:
+        bt_ratings = choix.mm_pairwise(
+            len(players),
+            comparisons_numeric,
+            alpha=alpha,
+            initial_params=initial_params,
+            max_iter=max_iter,
+            tol=tol
+        )
+    except RuntimeError as e:
+        # If MM algorithm did not converge, log an error and raise exception
+        logger.error("MM algorithm did not converge: {}".format(e))
+        raise
+
+    # Normalize ratings (optional)
+    bt_ratings -= np.mean(bt_ratings)  # Center the ratings
+
+    # Build the ratings list
     ratings = [{"player": p, "rating": r, "variance": None} for p, r in zip(players, bt_ratings)]
+
     return ratings
 
 
@@ -194,7 +257,7 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
         ranking = run_trueskill(simple_game_sets)
     elif ranking_to_run == "bradleyterry":
-        game_sets_filtered = filter_game_sets(game_sets, threshold_sets=20, threshold_games=None)
+        game_sets_filtered = filter_game_sets(game_sets, threshold_sets=5, threshold_games=None)
         simple_game_sets_filtered, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets_filtered, evaluation_level)
         ranking = run_bradley_terry(simple_game_sets_filtered)
     return ranking, id_to_player_name, player_to_id
@@ -208,6 +271,10 @@ def find_incomplete_players(game_sets, sets_threshold=None, games_threshold=None
     # Count sets and games for each player
     for game_set in game_sets:
         player_1, player_2 = game_set["id_1"], game_set["id_2"]
+        if game_set["score_1"] is None or game_set["score_2"] is None:
+            continue
+        if (game_set["score_1"] == 0 and game_set["score_2"] == 0) or game_set["score_1"] < 0 or game_set["score_2"] < 0:
+            continue
         sets_count[player_1] += 1
         sets_count[player_2] += 1
         games_count[player_1] += game_set["score_1"] + game_set["score_2"]

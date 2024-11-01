@@ -1,103 +1,61 @@
 
-tournament_folder_path = TOURNAMENT_FOLDER_PATH
-all_tournaments_df = get_major_tournaments_from_folder(tournament_folder_path)
-print(all_tournaments_df)
-print(all_tournaments_df[~all_tournaments_df["Tier"].isin(["D", "1"])])
-print(all_tournaments_df[~all_tournaments_df["Tier"].isin(["D", "C", "B", "B+", "A", "A+"])])
-print(set(all_tournaments_df["Tier"]))
-
-# for tiers in [], get:
-# tourney_slug, event_slug
-# tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
-
-# save to a file {tourney_slug}.json
-# with this:  json.dumps({"link": link, event: "event_slug", "tier": tier, "date": event_start_time, "name": tournament_name, "sets": sets})
-
-# EXTRACTED_TOURNAMENTS_PATH
 
 
-#https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/export?format=xlsx&gid=960683289#gid=960683289
+make a docker container that
+    get the link from ddb https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=960683289#gid=960683289
+    run the pull and update
 
-#google_sheets_url = "https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=960683289#gid=960683289"
+https://chatgpt.com/share/671aeff1-56a8-8008-a0b7-6b7b771290d1
 
 
 
+Create code for one flask api that runs the following, based on values passed during the call, if a value is not included it should be None.  Make sure the api is cors enabled like this:
+from flask_cors import CORS
 
-# google_sheets_url = "https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=639215028#gid=639215028"
-# sheet_name = "TTS by Date (2024.2)"
-# 
-
-# download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file)
-
+app = Flask(__name__)
+CORS(app)
 
 
-# print(process_tournament_file(output_file))
+from src.tournament_data_utils.utils import query_tournaments
 
-
-from src.smash_data.puller import process_tournaments
-TOURNAMENT_FOLDER_PATH = "/Users/deaxman/Downloads/all_smash_rankings/"
-process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=TOURNAMENT_FOLDER_PATH)
-
-
-CHECK IF WE CAN SPEED UP THE MATCHES PULL!
-
-
-# run pull on all p and S+ S tiers 
-
-# look at the files and check for errors
-
-
-not in ["D", "C", "B", "B+", "A", "A+"]
-
-
-
-# run pull on all 1174 tiers AND process get sets put in s3 etc put in ddb
+query_tournaments(tier_options=tier_options, start_date=start_date, end_date=start_date)
 
 
 
 
 
+#######################
 
-#todo: 
+Create code for a flask api that runs the following based on values passed during the call (tier_options, start_date, end_date, ranking_to_run, and evaluation_level), if a value is not included it should be None.  Make sure the api is cors enabled like this:
+from flask_cors import CORS
 
-# https://chatgpt.com/share/671aeff1-56a8-8008-a0b7-6b7b771290d1
-
-"""
-
-
-google_sheets_url = 'https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=SHEET_GID'  # Replace with your Google Sheet URL
-sheet_name = 'Tab Name'  # Replace with the name of the sheet to keep
-output_file = 'output.xlsx'
+app = Flask(__name__)
+CORS(app)
 
 
+from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating, get_all_sets_from_tournament_files
+from src.smash_ranking import get_player_rating
+from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
-s3_bucket = smash_ranking_tournament_data
-dynamo_db_table = smash_ranking_tournament_table
 
-# if given a link to the doc
-    output_file = 'output_tmp.xlsx'
-    download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file)
-    all_tournaments_df = process_tournament_file(output_file)
-# elif given a path to a folder:
-    all_tournaments_df = get_major_tournaments_from_folder(tournament_folder_path)
-# if s3 bucket does not exist, then create it
-# if ddb does not exist, then create it
-for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"].to_list(), all_tournaments_df["event_slug"].to_list(), all_tournaments_df["Tier"].to_list()):
-    if f"{tourney_slug}.json" not in get_s3_filenames(bucket_name, prefix='') and passes_tier_filters(tier):
-        tournament_name, event_start_time, sets = get_all_info_for_tournament(tourney_slug, event_slug)
-        save to a file {tourney_slug}.json
-        with this:  json.dumps({"link": link, event: "event_slug", "tier": tier, "date": event_start_time, "name": tournament_name, "sets": sets})
-        upload this file to the s3 bucket
-        update the list of tourney dates, slugs, names, and tiers in ddb (dynamo_db_table) (additionally, in a separate function, give code to pull all of the records (each tournament) in the ddb, or to filter by tier, or between two dates)
+all_sets = get_all_sets_from_dates_and_tiers(tier_options=tier_options, start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00') #fill in these params with the passed params, validating format etc
 
-"""
+ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
+
+ratings_dict = {"name": ranking_to_run, "ratings": [{"player": list(id_to_player_name[int(r["player"])]), "rating": r["rating"], "variance": r["variance"]} for r in ratings]}
+
+
+
+return ratings_dict to the call
+
+
+make a dockerfile for running this api flask
 
 
 
 # Make api that takes set of tournament slugs and returns players and scores
 # make it also take tier and date filters and return list of all tournaments as keys in dict with each having True or False value
-# #Glicko/Glicko-2???
-# #Bayesian Elo
+
 
 
 # Make a good looking react website that makes a request to get a list of tournament names and information (Tier (P, S, or A), date, and unique_id)

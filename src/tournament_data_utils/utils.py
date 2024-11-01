@@ -8,7 +8,7 @@ dynamodb = boto3.resource('dynamodb')
 ddb_table = dynamodb.Table(dynamo_db_table_name)
 
 
-def query_tournaments(tier_options=(), start_date=None, end_date=None):
+def query_tournaments(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C", "D"), start_date=None, end_date=None):
     """
     Query DynamoDB table for tournaments within a date range and specified tiers.
 
@@ -21,7 +21,8 @@ def query_tournaments(tier_options=(), start_date=None, end_date=None):
     Returns:
         list: List of tournament items matching the criteria.
     """
-
+    if tier_options is None:
+        tier_options = ("P", "S+", "S", "A+", "A", "B+", "B", "C", "D")
     # Build the filter expression
     filter_expression = []
     expression_values = {}
@@ -92,7 +93,7 @@ def get_all_sets_from_tournament_files(all_tournament_files):
     for filename in all_tournament_files:
         with open(LOCAL_TOURNAMENT_DATA_DIR/filename, "r") as f:
             jsn = json.load(f)
-            all_sets.extend([s for s in jsn["sets"]])
+            all_sets.extend([{"tournament_name": jsn["name"], **s} for s in jsn["sets"]])
     return all_sets
 
 

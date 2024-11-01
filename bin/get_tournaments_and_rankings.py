@@ -1,19 +1,22 @@
-from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating
+from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating, get_all_sets_from_tournament_files, query_tournaments
 from src.smash_ranking import get_player_rating
+from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
 #("P", "S+", "S", "A+", "A", "B+", "B", "C", "D")
 
-all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00')
+#all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00')
+file_names = {file.name for file in LOCAL_TOURNAMENT_DATA_DIR.iterdir() if file.is_file()}
+all_sets = get_all_sets_from_tournament_files(file_names)
 
-ranking_to_run = "elo"
+ranking_to_run = "bradleyterry"
 ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
 
-for k, v in id_to_player_name.items():
-    if len(v) != 1:
-        print(k, v)
+# for k, v in id_to_player_name.items():
+#     if len(v) != 1:
+#         print(k, v)
 
-#ratings_dict = {"name": ranking_to_run, "ratings": [{"player": list(id_to_player_name[int(r["player"])])[0], "rating": r["rating"], "variance": r["variance"]} for r in ratings]}
-ratings_dict = {"name": ranking_to_run, "ratings": ratings}
+ratings_dict = {"name": ranking_to_run, "ratings": [{"player": list(id_to_player_name[int(r["player"])]), "rating": r["rating"], "variance": r["variance"]} for r in ratings]}
+#ratings_dict = {"name": ranking_to_run, "ratings": ratings}
 
 display_rating(ratings_dict, threshold=100)
 
