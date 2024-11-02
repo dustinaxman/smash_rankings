@@ -4,9 +4,9 @@ from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
 #("P", "S+", "S", "A+", "A", "B+", "B", "C", "D")
 
-#all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00')
-file_names = {file.name for file in LOCAL_TOURNAMENT_DATA_DIR.iterdir() if file.is_file()}
-all_sets = get_all_sets_from_tournament_files(file_names)
+all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+"), start_date='2018-07-16T00:00:00', end_date='2024-11-01T00:00:00')
+# file_names = {file.name for file in LOCAL_TOURNAMENT_DATA_DIR.iterdir() if file.is_file()}
+# all_sets = get_all_sets_from_tournament_files(file_names)
 
 ranking_to_run = "bradleyterry"
 ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
@@ -15,10 +15,10 @@ ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_t
 #     if len(v) != 1:
 #         print(k, v)
 
-ratings_dict = {"name": ranking_to_run, "ratings": [{"player": list(id_to_player_name[int(r["player"])]), "rating": r["rating"], "variance": r["variance"]} for r in ratings]}
+ratings_dict = {"name": ranking_to_run, "ratings": [{"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in ratings]}
 #ratings_dict = {"name": ranking_to_run, "ratings": ratings}
 
-display_rating(ratings_dict, threshold=100)
+display_rating(ratings_dict, threshold=30)
 
     # [{'event_slug': 'ultimate-singles',
     #   'date': '2024-02-16T18:00:00',

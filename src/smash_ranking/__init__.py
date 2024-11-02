@@ -4,52 +4,33 @@ import networkx as nx
 import choix
 import numpy as np
 import logging
+from datetime import datetime
+from glicko2 import Player as Glicko2Player
+import math
+from scipy.stats import norm
+from time import time
 
-# def process_game_sets_to_simple_format(game_sets, evaluation_level):
-#     simple_game_sets = []
-#     id_to_player_name = defaultdict(set)
-#     player_to_id = defaultdict(set)
-#     for game_set in game_sets:
-#         player_1_name = game_set["player_1"]
-#         player_2_name = game_set["player_2"]
-#         player_1_id = game_set["id_1"]
-#         player_2_id = game_set["id_2"]
-#         player1_uniq_representation = f"{player_1_id}"
-#         player2_uniq_representation = f"{player_2_id}"
-#         if evaluation_level == "games":
-#             score1 = game_set["score_1"]
-#             score2 = game_set["score_2"]
-#             score1 = 0 if score1 is None else score1
-#             score2 = 0 if score2 is None else score2
-#             if (score1 == 0 and score2 == 0) or score1 < 0 or score2 < 0:
-#                 continue
-#         elif evaluation_level == "sets":
-#             score1 = 1 if player_1_id == game_set["winner_id"] else 0
-#             score2 = 1 if player_2_id == game_set["winner_id"] else 0
-#         id_to_player_name[player_1_id].add(player_1_name)
-#         id_to_player_name[player_2_id].add(player_2_name)
-#         player_to_id[player_1_name].add(player_1_id)
-#         player_to_id[player_2_name].add(player_2_id)
-#         #very simple code to find first example of two sets where the same player has multiple different ids.  Print out both game_set dicts
-#         simple_game_sets.append([player1_uniq_representation, player2_uniq_representation, score1, score2])
-#     return simple_game_sets, id_to_player_name, player_to_id
 
 def process_game_sets_to_simple_format(game_sets, evaluation_level):
     simple_game_sets = []
     id_to_player_name = dict()
     player_to_id = dict()
+    initial_date = datetime(1500, 7, 20)
+    last_updated_date_for_id = defaultdict(lambda: initial_date)
 
-    for game_set in game_sets:
+    for game_set in sorted(game_sets, key=lambda g: datetime.fromisoformat(g["date"])):
         player_1_name = str(game_set["player_1"])
         player_2_name = str(game_set["player_2"])
-        player_1_id = int(game_set["id_1"])
-        player_2_id = int(game_set["id_2"])
+        player_1_id = game_set["id_1"]
+        player_2_id = game_set["id_2"]
         if player_1_id is None or player_2_id is None:
             continue
         if game_set["score_1"] is None or game_set["score_2"] is None:
             continue
         if (game_set["score_1"] == 0 and game_set["score_2"] == 0) or game_set["score_1"] < 0 or game_set["score_2"] < 0:
             continue
+        # if "Moist | Light" in [player_1_name, player_2_name]:
+        #     print(game_set)
         if evaluation_level == "games":
             score1 = game_set["score_1"]
             score2 = game_set["score_2"]
@@ -62,8 +43,17 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
             score2 = 1 if player_2_id == game_set["winner_id"] else 0
 
         # Track player name and ID associations
-        id_to_player_name[player_1_id] = player_1_name
-        id_to_player_name[player_2_id] = player_2_name
+        if player_1_name in player_to_id:
+            player_1_id = player_to_id[player_1_name]
+        if player_2_name in player_to_id:
+            player_2_id = player_to_id[player_2_name]
+        current_date = datetime.fromisoformat(game_set["date"])
+        if current_date > last_updated_date_for_id[player_1_id]:
+            id_to_player_name[player_1_id] = player_1_name
+            last_updated_date_for_id[player_1_id] = current_date
+        if current_date > last_updated_date_for_id[player_2_id]:
+            id_to_player_name[player_2_id] = player_2_name
+            last_updated_date_for_id[player_2_id] = current_date
         player_to_id[player_1_name] = player_1_id
         player_to_id[player_2_name] = player_2_id
         simple_game_sets.append([player_1_id, player_2_id, score1, score2])
@@ -88,13 +78,13 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
         Regularization parameter to prevent overfitting and help convergence.
 
     Returns:
-    - ratings: List of dictionaries with 'player', 'rating', and 'variance' keys.
+    - ratings: List of dictionaries with 'player', 'rating', and 'uncertainty' keys.
     """
-
+    start = time()
     # Configure logging
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-
+    print(time()-start)
     # Add console handler to logger
     if not logger.handlers:
         ch = logging.StreamHandler()
@@ -103,10 +93,9 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 
-    # Step 1: Build comparisons list and directed graph
-    comparisons = []
+    comparisons_counts = defaultdict(int)
     G = nx.DiGraph()
-
+    print(time() - start)
     for player1, player2, score1, score2 in simple_game_sets:
         score1 = int(score1)
         score2 = int(score2)
@@ -117,17 +106,17 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
 
         # Add edges for wins
         if score1 > 0:
-            comparisons.extend([(player1, player2)] * score1)
+            comparisons_counts[(player1, player2)] += score1
             G.add_edge(player1, player2)
         if score2 > 0:
-            comparisons.extend([(player2, player1)] * score2)
+            comparisons_counts[(player2, player1)] += score2
             G.add_edge(player2, player1)
 
     # Check if graph is empty
     if G.number_of_nodes() == 0:
         logger.error("No valid games provided.")
         raise ValueError("No valid games provided.")
-
+    print(time() - start)
     # Step 2: Find strongly connected components
     sccs = list(nx.strongly_connected_components(G))
 
@@ -144,37 +133,90 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
         raise ValueError("Largest strongly connected component is too small to compute ratings.")
 
     # Step 3: Filter comparisons to keep only those within the largest SCC
-    comparisons_filtered = [(p1, p2) for p1, p2 in comparisons if p1 in largest_scc and p2 in largest_scc]
+    comparisons_counts_filtered = {
+        (p1, p2): count
+        for (p1, p2), count in comparisons_counts.items()
+        if p1 in largest_scc and p2 in largest_scc
+    }
 
     # Step 4: Map players to indices within the largest SCC
     players = list(largest_scc)
     player_idx = {p: i for i, p in enumerate(players)}
+    n_players = len(players)
 
-    # Step 5: Convert comparisons to numeric indices
-    comparisons_numeric = [(player_idx[p1], player_idx[p2]) for p1, p2 in comparisons_filtered]
+    # Step 5: Prepare data for choix.mm_pairwise
+    comparisons_numeric = []
+    counts = []
 
-    # Step 6: Run Bradley-Terry model using MM algorithm with regularization
-    initial_params = np.zeros(len(players))  # Start with zero log-abilities
+    for (p1, p2), count in comparisons_counts_filtered.items():
+        comparisons_numeric.append((player_idx[p1], player_idx[p2]))
+        counts.append(count)
 
+    # Flatten the comparisons according to counts
+    expanded_comparisons = []
+    for (i, j), count in zip(comparisons_numeric, counts):
+        expanded_comparisons.extend([(i, j)] * count)
+
+    # Step 6: Run Bradley-Terry model using mm_pairwise
+    initial_params = np.zeros(n_players)  # Start with zero log-abilities
+    print(time() - start)
     try:
         bt_ratings = choix.mm_pairwise(
-            len(players),
-            comparisons_numeric,
+            n_items=n_players,
+            data=expanded_comparisons,
             alpha=alpha,
             initial_params=initial_params,
             max_iter=max_iter,
-            tol=tol
+            tol=tol,
         )
     except RuntimeError as e:
         # If MM algorithm did not converge, log an error and raise exception
         logger.error("MM algorithm did not converge: {}".format(e))
         raise
-
+    print("done mean", time() - start)
     # Normalize ratings (optional)
     bt_ratings -= np.mean(bt_ratings)  # Center the ratings
 
+    # Compute the Hessian matrix efficiently
+    i_array = np.array([i for (i, j) in comparisons_numeric])
+    j_array = np.array([j for (i, j) in comparisons_numeric])
+    count_array = np.array(counts)
+
+    delta_array = bt_ratings[i_array] - bt_ratings[j_array]
+    exp_delta = np.exp(delta_array)
+    p = exp_delta / (1 + exp_delta)
+    w = count_array * p * (1 - p)
+
+    print("A", time() - start)
+    H = np.zeros((n_players, n_players))
+    np.add.at(H, (i_array, i_array), w)
+    np.add.at(H, (j_array, j_array), w)
+    np.add.at(H, (i_array, j_array), -w)
+    np.add.at(H, (j_array, i_array), -w)
+    print("B", time()-start)
+    # Add regularization term (alpha) to the diagonal
+    H += alpha * np.eye(n_players)
+    print("C", time() - start)
+    # Invert the Hessian to get the covariance matrix
+    try:
+        cov_matrix = np.linalg.inv(H)
+    except np.linalg.LinAlgError as e:
+        logger.error("Hessian is singular and cannot be inverted: {}".format(e))
+        raise
+    print("D", time() - start)
+    # Extract the standard errors
+    variances = np.diag(cov_matrix)
+    standard_errors = np.sqrt(variances)
+    print("E", time() - start)
+    # Compute confidence intervals
+    z = norm.ppf(1 - 0.025)  # Approximately 1.96 for 95% confidence
+
+    uncertainty = z * standard_errors
+    print("F", time() - start)
     # Build the ratings list
-    ratings = [{"player": p, "rating": r, "variance": None} for p, r in zip(players, bt_ratings)]
+    ratings = []
+    for p, r, u in zip(players, bt_ratings, uncertainty):
+        ratings.append({"player": p, "rating": r, "uncertainty": u})
 
     return ratings
 
@@ -182,52 +224,54 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
 def run_elo(simple_game_sets):
     elo_ratings = defaultdict(lambda: 1200)  # Default initial rating of 1200
     games_played = defaultdict(int)  # Track total games played per player
+    first_iter = True
+    while first_iter:# or max(elo_ratings.values()) < 2800:
+        for matchup in simple_game_sets:
+            player1, player2, score1, score2 = matchup
+            total_games = score1 + score2
+            if total_games == 0:
+                continue
 
-    for matchup in simple_game_sets:
-        player1, player2, score1, score2 = matchup
-        total_games = score1 + score2
-        if total_games == 0:
-            continue
+            games_played[player1] += total_games
+            games_played[player2] += total_games
 
-        games_played[player1] += total_games
-        games_played[player2] += total_games
+            # # Determine if players are provisional based on games played
+            # is_provisional1 = games_played[player1] < 30
+            # is_provisional2 = games_played[player2] < 30
 
-        # Determine if players are provisional based on games played
-        is_provisional1 = games_played[player1] < 20
-        is_provisional2 = games_played[player2] < 20
+            # # Skip Elo adjustment for established players facing provisional opponents
+            # if not is_provisional1 and is_provisional2:
+            #     continue
+            # if not is_provisional2 and is_provisional1:
+            #     continue
 
-        # Skip Elo adjustment for established players facing provisional opponents
-        if not is_provisional1 and is_provisional2:
-            continue
-        if not is_provisional2 and is_provisional1:
-            continue
+            # Set K-factor based on experience and rating
+            def get_k_factor(player):
+                if games_played[player] < 30:  # Provisional player
+                    return 40
+                elif elo_ratings[player] >= 2400:  # Top player
+                    return 10
+                else:  # Established player
+                    return 20
 
-        # Set K-factor based on experience and rating
-        def get_k_factor(player):
-            if games_played[player] < 30:  # Provisional player
-                return 40
-            elif elo_ratings[player] >= 2400:  # Top player
-                return 10
-            else:  # Established player
-                return 20
+            k_factor1 = get_k_factor(player1)
+            k_factor2 = get_k_factor(player2)
 
-        k_factor1 = get_k_factor(player1)
-        k_factor2 = get_k_factor(player2)
+            # Calculate expected scores for both players
+            expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - elo_ratings[player1]) / 400))
+            expected_score2 = 1 - expected_score1
 
-        # Calculate expected scores for both players
-        expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - elo_ratings[player1]) / 400))
-        expected_score2 = 1 - expected_score1
+            # Calculate actual scores as proportions
+            actual_score1 = score1 / total_games
+            actual_score2 = score2 / total_games
 
-        # Calculate actual scores as proportions
-        actual_score1 = score1 / total_games
-        actual_score2 = score2 / total_games
-
-        # Update ratings based on K-factors and actual vs expected scores
-        elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
-        elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
+            # Update ratings based on K-factors and actual vs expected scores
+            elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
+            elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
+            first_iter = False
 
     # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating, "variance": None} for player, rating in elo_ratings.items()]
+    ratings = [{"player": player, "rating": rating, "uncertainty": games_played[player]} for player, rating in elo_ratings.items()]
     return ratings
 
 def run_trueskill(simple_game_sets):
@@ -246,7 +290,7 @@ def run_trueskill(simple_game_sets):
             new_rating1, new_rating2 = env.rate_1vs1(ts_ratings[player1], ts_ratings[player2], drawn=True)
         ts_ratings[player1] = new_rating1
         ts_ratings[player2] = new_rating2
-    ratings = [{"player": r[0], "rating": r[1].mu, "variance": r[1].sigma} for r in ts_ratings.items()]
+    ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": r[1].sigma} for r in ts_ratings.items()]
     return ratings
 
 def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
@@ -257,9 +301,17 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
         ranking = run_trueskill(simple_game_sets)
     elif ranking_to_run == "bradleyterry":
-        game_sets_filtered = filter_game_sets(game_sets, threshold_sets=5, threshold_games=None)
+        game_sets_filtered = filter_game_sets(game_sets, threshold_sets=None, threshold_games=None)
         simple_game_sets_filtered, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets_filtered, evaluation_level)
         ranking = run_bradley_terry(simple_game_sets_filtered)
+    elif ranking_to_run == "glicko2":
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
+                                                                                               evaluation_level)
+        ranking = run_glicko2(simple_game_sets)
+    elif ranking_to_run == "bayesianelo":
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
+                                                                                               evaluation_level)
+        ranking = bayesian_elo(simple_game_sets)
     return ranking, id_to_player_name, player_to_id
 
 
@@ -304,8 +356,117 @@ def filter_game_sets(game_sets, threshold_sets=None, threshold_games=None):
     return filter_out_players_games(game_sets, incomplete_players)
 
 
+
+def run_glicko2(simple_game_sets, initial_rating=1500, initial_rd=350, initial_volatility=0.06):
+    """
+    Computes Glicko-2 ratings based on match outcomes using the `glicko2` library.
+
+    Parameters:
+    - simple_game_sets: List of match results in the format [(player1, player2, score1, score2), ...]
+    - initial_rating: Initial rating for new players
+    - initial_rd: Initial rating deviation for new players
+    - initial_volatility: Initial volatility for new players
+
+    Returns:
+    - List of player ratings with rating, rating deviation, and volatility.
+    """
+    # Initialize a dictionary to store Glicko2Player instances
+    glicko_ratings = defaultdict(lambda: Glicko2Player(initial_rating, initial_rd, initial_volatility))
+
+    # Process each match outcome
+    for matchup in simple_game_sets:
+        player1, player2, score1, score2 = matchup
+        total_games = score1 + score2
+        if total_games == 0:
+            continue  # Skip if there are no games played
+
+        # Determine the match outcome (win, loss, or draw)
+        if score1 > score2:
+            result1, result2 = 1, 0  # player1 wins
+        elif score2 > score1:
+            result1, result2 = 0, 1  # player2 wins
+        else:
+            result1, result2 = 0.5, 0.5  # draw
+
+        # Get Glicko2Player instances for both players
+        player1_obj = glicko_ratings[player1]
+        player2_obj = glicko_ratings[player2]
+
+        # Update ratings for both players based on match outcome
+        player1_obj.update_player([player2_obj.rating], [player2_obj.rd], [result1])
+        player2_obj.update_player([player1_obj.rating], [player1_obj.rd], [result2])
+
+    # Prepare the output in a structured format
+    ratings = [
+        {
+            "player": player,
+            "rating": player_obj.rating,
+            "uncertainty": player_obj.rd
+        }
+        for player, player_obj in glicko_ratings.items()
+    ]
+    return ratings
+
+def bayesian_elo(matches, initial_rating=1200, k_factor=20, variance=200):
+    """
+    Computes Bayesian Elo ratings for players based on a list of matches.
+
+    Args:
+    - matches (list of lists): Each entry is a list [player_1_id, player_2_id, score1, score2]
+      where `score1` and `score2` are the respective scores for player_1 and player_2.
+      `score1` > `score2` means player_1 wins, and vice versa.
+    - initial_rating (int, optional): The initial rating for each player. Default is 1500.
+    - k_factor (float, optional): The learning rate or adjustment factor for the Elo update.
+    - variance (float, optional): Initial variance in the ratings, reflecting uncertainty.
+
+    Returns:
+    - list of dicts: Each dict contains "player", "rating", and "variance" for each player.
+
+    """
+
+    # Player rating and variance initialization
+    player_ratings = defaultdict(lambda: {"rating": initial_rating, "variance": variance})
+
+    def expected_score(rating1, rating2, variance1, variance2):
+        # Expectation based on normal distribution assumption for Bayesian Elo
+        return 1 / (1 + math.exp((rating2 - rating1) / math.sqrt(variance1 + variance2)))
+
+    def update_ratings(player1, player2, score1, score2):
+        # Retrieve current ratings and variances
+        r1, v1 = player_ratings[player1]["rating"], player_ratings[player1]["variance"]
+        r2, v2 = player_ratings[player2]["rating"], player_ratings[player2]["variance"]
+
+        # Compute expected scores
+        E1 = expected_score(r1, r2, v1, v2)
+        E2 = 1 - E1
+
+        # Determine actual score outcome
+        S1 = 1 if score1 > score2 else 0.5 if score1 == score2 else 0
+        S2 = 1 - S1
+
+        # Update ratings
+        player_ratings[player1]["rating"] += k_factor * (S1 - E1)
+        player_ratings[player2]["rating"] += k_factor * (S2 - E2)
+
+        # Update variances with Bayesian approach to adapt to more consistent performance
+        player_ratings[player1]["variance"] = max(variance / 2, v1 * (1 - E1))
+        player_ratings[player2]["variance"] = max(variance / 2, v2 * (1 - E2))
+
+    # Process each match
+    for match in matches:
+        player1, player2, score1, score2 = match
+        update_ratings(player1, player2, score1, score2)
+
+    # Compile the results
+    ratings = [
+        {"player": player, "rating": info["rating"], "uncertainty": info["variance"]}
+        for player, info in player_ratings.items()
+    ]
+    return ratings
+
 # Each game set looks like this:
 # {
+#   "date": <datetime object for set>
 #   "player_1": "LG | Tweek",
 #   "id_1": 12394650,
 #   "score_1": 3,
@@ -315,15 +476,6 @@ def filter_game_sets(game_sets, threshold_sets=None, threshold_games=None):
 #   "winner_id": 12394650
 # }
 # and set_list is just a list of these game set dictionaries.
-
-# make function that takes in a set of games and gets a set of player ids that have not completed sets_threshold sets and games_threshold games
-# if sets_threshold is None, then ignore that threshold requirement, if games_threshold is None then ignore that threshold requirement.
-# in each game set, the score_1 + score_2 is the total number of GAMES played in that set.  One game set dict corresponds to one SET played.
-# Make it very fast and memory efficient but also simple.
-
-# make function that takes a list of player ids and list of game sets and returns only the game sets in which those players do not play (as id_1 or id_2)
-
-# make a function called filter_game_sets that takes in the game sets list and filters all game sets containing players who have not yet played threshold_sets and threshold_games
 
 
 

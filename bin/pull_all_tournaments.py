@@ -30,12 +30,13 @@ def main():
 
     # Get google_sheets_url if tournament_folder_path is not provided
     tournament_folder_path = args.tournament_folder_path
-    google_sheets_url = None
+    google_sheets_url, google_sheets_sheetname = None, None
 
     if tournament_folder_path is None:
         google_sheets_url, google_sheets_sheetname = get_google_sheets_url_from_dynamodb()
 
-    excluded_tiers = ()
+
+    excluded_tiers = ("D",)
     start = time.time()
     process_tournaments(
         google_sheets_url=google_sheets_url,

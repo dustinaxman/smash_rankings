@@ -93,7 +93,7 @@ def get_all_sets_from_tournament_files(all_tournament_files):
     for filename in all_tournament_files:
         with open(LOCAL_TOURNAMENT_DATA_DIR/filename, "r") as f:
             jsn = json.load(f)
-            all_sets.extend([{"tournament_name": jsn["name"], **s} for s in jsn["sets"]])
+            all_sets.extend([{"tournament_name": jsn["name"], "date": jsn["date"], **s} for s in jsn["sets"]])
     return all_sets
 
 
@@ -116,9 +116,9 @@ def display_rating(ratings_dict, threshold=100):
     print("| Player | Mean Rating | Variance |")
     print("|--------|-------------|----------|")
     for record in sorted(ratings, key=lambda a: a["rating"], reverse=True)[:threshold]:
-        player, rating, variance = record["player"], record["rating"], record["variance"]
-        if variance is not None:
-            print(f"| {player} | {rating:.2f} | {variance:.2f} |")
+        player, rating, uncertainty = record["player"], record["rating"], record["uncertainty"]
+        if uncertainty is not None:
+            print(f"| {player} | {rating:.2f} | {uncertainty:.2f} |")
         else:
             print(f"| {player} | {rating:.2f} | None |")
 

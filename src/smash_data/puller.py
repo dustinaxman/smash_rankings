@@ -27,8 +27,8 @@ logging.basicConfig(level=logging.INFO,
                     ])
 
 
-def get_parameter_from_ssm(parameter_name):
-    ssm = boto3.client('ssm')
+def get_parameter_from_ssm(parameter_name, region="us-east-1"):
+    ssm = boto3.client('ssm', region_name=region)
     try:
         response = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
         return response['Parameter']['Value']
@@ -615,10 +615,12 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
     logging.info(f"Retrieved {len(s3_files)} files from S3 bucket '{s3_bucket}'.")
 
     total_tournaments_to_process = 0
+    logging.info("Need to process:")
     for tourney_slug, event_slug, tier in zip(all_tournaments_df["tourney_slug"], all_tournaments_df["event_slug"],
                                               all_tournaments_df["Tier"]):
         json_filename = f"{tourney_slug}-{event_slug}.json"
         if json_filename not in s3_files and (tier not in excluded_tiers) and not check_ddb_for_event(dynamo_db_table_name, tourney_slug, event_slug):
+            logging.info(tourney_slug)
             total_tournaments_to_process += 1
     logging.info(f"Total tournaments:{total_tournaments_to_process}")
     # Process each tournament entry
