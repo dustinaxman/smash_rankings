@@ -1,26 +1,10 @@
 
 
 
-make a docker container that
-    get the link from ddb https://docs.google.com/spreadsheets/d/1va7cwOc-fAH2fj6dmnE-4i_m2uYhGIkQvha44fExG-k/edit?gid=960683289#gid=960683289
-    run the pull and update
 
-https://chatgpt.com/share/671aeff1-56a8-8008-a0b7-6b7b771290d1
-
-
-
-Create code for one flask api that runs the following, based on values passed during the call, if a value is not included it should be None.  Make sure the api is cors enabled like this:
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-
-from src.tournament_data_utils.utils import query_tournaments
-
-query_tournaments(tier_options=tier_options, start_date=start_date, end_date=start_date)
-
-
+speed up uncertainty calc and all calcs
+check uncertainty
+check all rankings
 
 
 
@@ -33,28 +17,111 @@ app = Flask(__name__)
 CORS(app)
 
 
+In one GET call:
+
 from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating, get_all_sets_from_tournament_files
 from src.smash_ranking import get_player_rating
 from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
 
-all_sets = get_all_sets_from_dates_and_tiers(tier_options=tier_options, start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00') #fill in these params with the passed params, validating format etc
+all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00') #fill in these params with the passed params, validating format etc
 
 ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
 
 ratings_dict = {"name": ranking_to_run, "ratings": [{"player": list(id_to_player_name[int(r["player"])]), "rating": r["rating"], "variance": r["variance"]} for r in ratings]}
 
-
-
 return ratings_dict to the call
 
 
-make a dockerfile for running this api flask
+
+additionally, this should be allowed as a separate GET call:
+
+from src.tournament_data_utils.utils import query_tournaments
+
+results = query_tournaments(tier_options=tier_options, start_date=start_date, end_date=start_date)
 
 
 
-# Make api that takes set of tournament slugs and returns players and scores
-# make it also take tier and date filters and return list of all tournaments as keys in dict with each having True or False value
+This is the dockerfile that will be used to run this flask app:
+
+
+# Use an official Python runtime as a parent image
+FROM python:3.9-alpine
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the requirements.txt file first and install dependencies
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && pip install gunicorn
+
+# Copy the rest of the application files into the container
+COPY app.py /app/app.py
+COPY camp_finder/ /app/camp_finder/
+
+# Expose port 5000 for Flask
+EXPOSE 5000
+
+# Run the application with Gunicorn
+# 4 worker processes (-w 4) and bind to all IPs on port 5000 (-b 0.0.0.0:5000)
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "app:app"]
+
+
+
+
+test out the api that gives the rankings
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+docker build -f Dockerfile.tournament_updater -t tournament_updater_image .
+
+
+aws ecr create-repository --repository-name tournament_updater_image --region us-east-1
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 198449958201.dkr.ecr.us-east-1.amazonaws.com
+
+docker tag tournament_updater_image:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/tournament_updater_image:latest
+
+docker push 198449958201.dkr.ecr.us-east-1.amazonaws.com/tournament_updater_image:latest
+
+
+
+
+
+WEDNESDAY:
+
+test the google sheets pull manually
+
+
+
+https://chatgpt.com/share/671aeff1-56a8-8008-a0b7-6b7b771290d1
+
+
+host it up somewhere to be run auto every wednesday, it needs the ability to access ddb and s3 as well as this parameter:
+
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "ssm:GetParameter",
+            "Resource": "arn:aws:ssm:*:*:parameter/STARTGG_API_KEY"
+        }
+    ]
+}
+
+
 
 
 

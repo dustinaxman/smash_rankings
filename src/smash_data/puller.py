@@ -294,20 +294,27 @@ def get_all_sets(event_id, token):
 
         response = rate_limited_request_post(url, json={'query': query, 'variables': variables}, headers=headers)
         if response.status_code != 200:
+            logging.info(variables)
             raise Exception(f"get_all_sets Request failed with status {response.status_code}")
 
         data = response.json()
         if not data.get("success", True) or "data" not in data:
             raise ValueError(f"get_all_sets No success or no data in response: {str(response)}")
 
-        sets = data['data']['event']['sets']['nodes']
-        start_time = datetime.utcfromtimestamp(data['data']['event']['startAt'])
+        try:
+            sets = data['data']['event']['sets']['nodes']
+            start_time = datetime.utcfromtimestamp(data['data']['event']['startAt'])
+        except:
+            logging.info(variables)
 
         total_objects = 0
-        for set_data in sets:
-            processed_set = process_set_data(set_data)
-            total_objects += count_total_objects_in_set(set_data)
-            all_sets.append(processed_set)
+        try:
+            for set_data in sets:
+                processed_set = process_set_data(set_data)
+                total_objects += count_total_objects_in_set(set_data)
+                all_sets.append(processed_set)
+        except:
+            logging.info(variables)
 
         total_sets = data['data']['event']['sets']['pageInfo']['total']
         retrieved_sets = len(all_sets)

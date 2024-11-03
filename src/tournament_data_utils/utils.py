@@ -113,7 +113,7 @@ def display_rating(ratings_dict, threshold=100):
     rating_name = ratings_dict["name"]
     ratings = ratings_dict["ratings"]
     print(f"## {rating_name} Ratings")
-    print("| Player | Mean Rating | Variance |")
+    print("| Player | Mean Rating | Relative Uncertainty |")
     print("|--------|-------------|----------|")
     for record in sorted(ratings, key=lambda a: a["rating"], reverse=True)[:threshold]:
         player, rating, uncertainty = record["player"], record["rating"], record["uncertainty"]

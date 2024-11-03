@@ -16,6 +16,14 @@ aws dynamodb put-item \
     }'
 
 
+docker build -f Dockerfile.tournament_updater -t tournament_updater_image .
+
+
+docker run -v /Users/deaxman/Downloads/all_smash_rankings:/data \
+           -v ~/.aws:/root/.aws \
+           tournament_updater_image \
+           --tournament_folder_path /data
+
 
 
 

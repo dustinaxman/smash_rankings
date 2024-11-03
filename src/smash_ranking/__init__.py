@@ -9,6 +9,9 @@ from glicko2 import Player as Glicko2Player
 import math
 from scipy.stats import norm
 from time import time
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import cg
+from scipy.sparse import coo_matrix
 
 
 def process_game_sets_to_simple_format(game_sets, evaluation_level):
@@ -80,11 +83,11 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
     Returns:
     - ratings: List of dictionaries with 'player', 'rating', and 'uncertainty' keys.
     """
-    start = time()
+
     # Configure logging
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-    print(time()-start)
+
     # Add console handler to logger
     if not logger.handlers:
         ch = logging.StreamHandler()
@@ -95,7 +98,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
 
     comparisons_counts = defaultdict(int)
     G = nx.DiGraph()
-    print(time() - start)
+
     for player1, player2, score1, score2 in simple_game_sets:
         score1 = int(score1)
         score2 = int(score2)
@@ -116,7 +119,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
     if G.number_of_nodes() == 0:
         logger.error("No valid games provided.")
         raise ValueError("No valid games provided.")
-    print(time() - start)
+
     # Step 2: Find strongly connected components
     sccs = list(nx.strongly_connected_components(G))
 
@@ -152,14 +155,14 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
         comparisons_numeric.append((player_idx[p1], player_idx[p2]))
         counts.append(count)
 
-    # Flatten the comparisons according to counts
+    # Expand comparisons according to counts
     expanded_comparisons = []
     for (i, j), count in zip(comparisons_numeric, counts):
         expanded_comparisons.extend([(i, j)] * count)
 
     # Step 6: Run Bradley-Terry model using mm_pairwise
     initial_params = np.zeros(n_players)  # Start with zero log-abilities
-    print(time() - start)
+
     try:
         bt_ratings = choix.mm_pairwise(
             n_items=n_players,
@@ -173,7 +176,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
         # If MM algorithm did not converge, log an error and raise exception
         logger.error("MM algorithm did not converge: {}".format(e))
         raise
-    print("done mean", time() - start)
+
     # Normalize ratings (optional)
     bt_ratings -= np.mean(bt_ratings)  # Center the ratings
 
@@ -187,32 +190,41 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
     p = exp_delta / (1 + exp_delta)
     w = count_array * p * (1 - p)
 
-    print("A", time() - start)
-    H = np.zeros((n_players, n_players))
-    np.add.at(H, (i_array, i_array), w)
-    np.add.at(H, (j_array, j_array), w)
-    np.add.at(H, (i_array, j_array), -w)
-    np.add.at(H, (j_array, i_array), -w)
-    print("B", time()-start)
+    # Build the Hessian matrix as a sparse matrix
+    start = time()
+    data = np.concatenate([w, w, -w, -w])
+    row = np.concatenate([i_array, j_array, i_array, j_array])
+    col = np.concatenate([i_array, j_array, j_array, i_array])
+
+    H_sparse = coo_matrix((data, (row, col)), shape=(n_players, n_players))
+
     # Add regularization term (alpha) to the diagonal
-    H += alpha * np.eye(n_players)
-    print("C", time() - start)
-    # Invert the Hessian to get the covariance matrix
-    try:
-        cov_matrix = np.linalg.inv(H)
-    except np.linalg.LinAlgError as e:
-        logger.error("Hessian is singular and cannot be inverted: {}".format(e))
-        raise
-    print("D", time() - start)
-    # Extract the standard errors
-    variances = np.diag(cov_matrix)
+    H_sparse = H_sparse.tocsr()
+    H_sparse.setdiag(H_sparse.diagonal() + alpha)
+
+    # Compute the diagonal of the inverse Hessian using iterative methods
+    # We'll use the Conjugate Gradient method to solve Hx = e_i for each i
+
+    variances = np.zeros(n_players)
+    for i in range(n_players):
+        e_i = np.zeros(n_players)
+        e_i[i] = 1.0
+
+        # Use Conjugate Gradient to solve H * x = e_i
+        # Since H is symmetric positive-definite, CG is appropriate
+        x_i, info = cg(H_sparse, e_i, x0=None, rtol=1e-2, maxiter=100)
+        # if info != 0:
+        #     logger.warning(f"CG did not converge for index {i}, info={info}")
+
+        variances[i] = x_i[i]  # Diagonal element of the inverse Hessian
+
     standard_errors = np.sqrt(variances)
-    print("E", time() - start)
+
     # Compute confidence intervals
     z = norm.ppf(1 - 0.025)  # Approximately 1.96 for 95% confidence
-
+    print(time() - start)
     uncertainty = z * standard_errors
-    print("F", time() - start)
+
     # Build the ratings list
     ratings = []
     for p, r, u in zip(players, bt_ratings, uncertainty):
@@ -248,11 +260,11 @@ def run_elo(simple_game_sets):
             # Set K-factor based on experience and rating
             def get_k_factor(player):
                 if games_played[player] < 30:  # Provisional player
-                    return 40
+                    return 10
                 elif elo_ratings[player] >= 2400:  # Top player
                     return 10
                 else:  # Established player
-                    return 20
+                    return 10
 
             k_factor1 = get_k_factor(player1)
             k_factor2 = get_k_factor(player2)
@@ -271,7 +283,7 @@ def run_elo(simple_game_sets):
             first_iter = False
 
     # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating, "uncertainty": games_played[player]} for player, rating in elo_ratings.items()]
+    ratings = [{"player": player, "rating": rating, "uncertainty": 500/math.sqrt(games_played[player])} for player, rating in elo_ratings.items()]
     return ratings
 
 def run_trueskill(simple_game_sets):
@@ -290,7 +302,7 @@ def run_trueskill(simple_game_sets):
             new_rating1, new_rating2 = env.rate_1vs1(ts_ratings[player1], ts_ratings[player2], drawn=True)
         ts_ratings[player1] = new_rating1
         ts_ratings[player2] = new_rating2
-    ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": r[1].sigma} for r in ts_ratings.items()]
+    ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": 1.96 * r[1].sigma} for r in ts_ratings.items()]
     return ratings
 
 def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
@@ -401,13 +413,13 @@ def run_glicko2(simple_game_sets, initial_rating=1500, initial_rd=350, initial_v
         {
             "player": player,
             "rating": player_obj.rating,
-            "uncertainty": player_obj.rd
+            "uncertainty": 1.96 * player_obj.rd
         }
         for player, player_obj in glicko_ratings.items()
     ]
     return ratings
 
-def bayesian_elo(matches, initial_rating=1200, k_factor=20, variance=200):
+def bayesian_elo(matches, initial_rating=1200, k_factor=10, variance=200):
     """
     Computes Bayesian Elo ratings for players based on a list of matches.
 
@@ -459,7 +471,7 @@ def bayesian_elo(matches, initial_rating=1200, k_factor=20, variance=200):
 
     # Compile the results
     ratings = [
-        {"player": player, "rating": info["rating"], "uncertainty": info["variance"]}
+        {"player": player, "rating": info["rating"], "uncertainty": 1.96 * math.sqrt(info["variance"])}
         for player, info in player_ratings.items()
     ]
     return ratings
