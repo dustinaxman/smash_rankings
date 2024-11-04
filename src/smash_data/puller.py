@@ -236,25 +236,42 @@ query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
 
 # Function to extract player data from the set
 def process_set_data(set_data):
-    player_1 = set_data['slots'][0]['entrant']['name']
+    try:
+        player_1 = set_data['slots'][0]['entrant']['name']
+    except:
+        player_1 = None
     try:
         id_1 = set_data['slots'][0]['entrant']['participants'][0]["player"]["user"]["discriminator"]
     except:
         id_1 = None
-    score_1 = set_data['slots'][0]['standing']['stats']['score']['value']
-
-    player_2 = set_data['slots'][1]['entrant']['name']
+    try:
+        score_1 = set_data['slots'][0]['standing']['stats']['score']['value']
+    except:
+        score_1 = None
+    try:
+        player_2 = set_data['slots'][1]['entrant']['name']
+    except:
+        player_2 = None
     try:
         id_2 = set_data['slots'][1]['entrant']['participants'][0]["player"]["user"]["discriminator"]
     except:
         id_2 = None
-    score_2 = set_data['slots'][1]['standing']['stats']['score']['value']
-
+    try:
+        score_2 = set_data['slots'][1]['standing']['stats']['score']['value']
+    except:
+        score_2 = None
     # Determine the winner based on the placement field
-    if set_data['slots'][0]['standing']['placement'] < set_data['slots'][1]['standing']['placement']:
-        winner_id = id_1
-    else:
-        winner_id = id_2
+    if id_1 == "":
+        id_1 = None
+    if id_2 == "":
+        id_2 = None
+    try:
+        if set_data['slots'][0]['standing']['placement'] < set_data['slots'][1]['standing']['placement']:
+            winner_id = id_1
+        else:
+            winner_id = id_2
+    except:
+        winner_id = None
 
     # Create the desired dictionary format
     return {
@@ -301,20 +318,18 @@ def get_all_sets(event_id, token):
         if not data.get("success", True) or "data" not in data:
             raise ValueError(f"get_all_sets No success or no data in response: {str(response)}")
 
-        try:
-            sets = data['data']['event']['sets']['nodes']
-            start_time = datetime.utcfromtimestamp(data['data']['event']['startAt'])
-        except:
-            logging.info(variables)
+        sets = data['data']['event']['sets']['nodes']
+        start_time = datetime.utcfromtimestamp(data['data']['event']['startAt'])
 
         total_objects = 0
-        try:
-            for set_data in sets:
-                processed_set = process_set_data(set_data)
-                total_objects += count_total_objects_in_set(set_data)
-                all_sets.append(processed_set)
-        except:
-            logging.info(variables)
+        for node_idx, set_data in enumerate(sets):
+            if len(set_data['slots']) < 2:
+                logging.info(f"Fewer than 2 slots in node {node_idx}:")
+                logging.info(variables)
+                continue
+            processed_set = process_set_data(set_data)
+            total_objects += count_total_objects_in_set(set_data)
+            all_sets.append(processed_set)
 
         total_sets = data['data']['event']['sets']['pageInfo']['total']
         retrieved_sets = len(all_sets)
@@ -371,7 +386,7 @@ def process_tournament_file(file_path):
         
         # Extract data from the sheet row by row
         data = []
-        for row in sheet.iter_rows(min_row=2):  # Start from row 3 based on initial observations
+        for row in sheet.iter_rows(min_row=0):
             row_data = {}
             tier_found = False  # Flag to mark if the first "Tier" column has been found
             for cell in row:
@@ -446,7 +461,9 @@ def process_tournament_file(file_path):
         # Append the row to the list
         rows.append([link, tourney_slug, event_slug, tier])
 
-    print(len(rows))
+    # print(len(rows))
+    # print(rows)
+    # exit(1)
     # Create a DataFrame from the rows list
     return pd.DataFrame(rows, columns=['Link', 'tourney_slug', 'event_slug', 'Tier'])
 
@@ -646,45 +663,45 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
                 logging.error(f"Failed to retrieve details for tournament '{tourney_slug}': {e}")
                 continue
 
-            # Prepare and save JSON data
-            data = {
-                "link": google_sheets_url,
-                "event": event_slug,
-                "tier": tier,
-                "date": event_start_time.isoformat(),
-                "name": tournament_name,
-                "sets": sets
-            }
-            try:
-                with open(json_filename, 'w') as f:
-                    json.dump(data, f)
-                logging.info(f"Saved tournament data for '{tourney_slug}' to file '{json_filename}'.")
-            except Exception as e:
-                logging.error(f"Failed to save JSON file '{json_filename}': {e}")
-                continue
+            # # Prepare and save JSON data
+            # data = {
+            #     "link": google_sheets_url,
+            #     "event": event_slug,
+            #     "tier": tier,
+            #     "date": event_start_time.isoformat(),
+            #     "name": tournament_name,
+            #     "sets": sets
+            # }
+            # try:
+            #     with open(json_filename, 'w') as f:
+            #         json.dump(data, f)
+            #     logging.info(f"Saved tournament data for '{tourney_slug}' to file '{json_filename}'.")
+            # except Exception as e:
+            #     logging.error(f"Failed to save JSON file '{json_filename}': {e}")
+            #     continue
+            #
+            # # Upload JSON file to S3 and delete local copy
+            # try:
+            #     upload_to_s3(s3_bucket, json_filename, json_filename)
+            #     os.remove(json_filename)
+            #     logging.info(f"Uploaded '{json_filename}' to S3 bucket '{s3_bucket}' and deleted local file.")
+            # except Exception as e:
+            #     logging.error(f"Failed to upload '{json_filename}' to S3 or delete local file: {e}")
+            #     continue
 
-            # Upload JSON file to S3 and delete local copy
-            try:
-                upload_to_s3(s3_bucket, json_filename, json_filename)
-                os.remove(json_filename)
-                logging.info(f"Uploaded '{json_filename}' to S3 bucket '{s3_bucket}' and deleted local file.")
-            except Exception as e:
-                logging.error(f"Failed to upload '{json_filename}' to S3 or delete local file: {e}")
-                continue
-
-            # Update DynamoDB with tournament metadata
-            dynamo_item = {
-                "tourney_slug": tourney_slug,
-                "event_slug": event_slug,
-                "tier": tier,
-                "date": event_start_time.isoformat(),
-                "name": tournament_name
-            }
-            try:
-                update_dynamodb(dynamo_db_table_name, dynamo_item)
-                logging.info(f"Updated DynamoDB table '{dynamo_db_table_name}' with tournament '{tourney_slug}'.")
-            except Exception as e:
-                logging.error(f"Failed to update DynamoDB for '{tourney_slug}': {e}")
+            # # Update DynamoDB with tournament metadata
+            # dynamo_item = {
+            #     "tourney_slug": tourney_slug,
+            #     "event_slug": event_slug,
+            #     "tier": tier,
+            #     "date": event_start_time.isoformat(),
+            #     "name": tournament_name
+            # }
+            # try:
+            #     update_dynamodb(dynamo_db_table_name, dynamo_item)
+            #     logging.info(f"Updated DynamoDB table '{dynamo_db_table_name}' with tournament '{tourney_slug}'.")
+            # except Exception as e:
+            #     logging.error(f"Failed to update DynamoDB for '{tourney_slug}': {e}")
 
 
 
