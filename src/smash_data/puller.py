@@ -33,7 +33,7 @@ def get_parameter_from_ssm(parameter_name, region="us-east-1"):
         response = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
         return response['Parameter']['Value']
     except ClientError as e:
-        print(f"Error fetching parameter {parameter_name}: {e}")
+        logging.info(f"Error fetching parameter {parameter_name}: {e}")
         return None
 
 if not os.environ.get("STARTGG_API_KEY"):
@@ -175,7 +175,7 @@ def select_correct_event(all_events_for_tourney):
         and any(keyword in event["name"].lower() for keyword in include_keywords)
     ]
     if len(all_selections) > 1:
-        print("Uncertain which event is Ultimate Singles:", all_selections)
+        logging.info(f"Uncertain which event is Ultimate Singles: {str(all_selections)}")
     else:
         return all_selections[0] if all_selections else None
 
@@ -386,15 +386,18 @@ def process_tournament_file(file_path):
         
         # Extract data from the sheet row by row
         data = []
-        for row in sheet.iter_rows(min_row=0):
+        for row in sheet.iter_rows(min_row=2):
             row_data = {}
             tier_found = False  # Flag to mark if the first "Tier" column has been found
+            #print("################")
             for cell in row:
                 # Map cell content to appropriate column based on its position
                 column_name = sheet.cell(row=1, column=cell.column).value
+                #print(cell.value)
                 if column_name in column_map['tournament']:
                     # Extract display name and hyperlink URL if available
                     row_data['tournament'] = extract_actual_value(cell.value)  # Tournament name
+                    #print(cell.hyperlink.target)
                     row_data['link'] = cell.hyperlink.target if cell.hyperlink else None
                 elif column_name in column_map['tier'] and not tier_found:
                     # Only set tier if it hasn't been set already
@@ -402,11 +405,11 @@ def process_tournament_file(file_path):
                     tier_found = True  # Mark that the first "Tier" has been processed
                 elif column_name in column_map['link'] and 'link' not in row_data:
                     row_data['link'] = extract_actual_value(cell.value)
+            #print(row_data)
             
             # Append row data if 'tournament' column is populated (skip empty rows)
             if 'tournament' in row_data:
                 data.append(row_data)
-        
         # Convert extracted data to DataFrame
         df = pd.DataFrame(data)
         
@@ -443,6 +446,8 @@ def process_tournament_file(file_path):
 
         # Skip rows without valid links
         if '.gg/' not in str(link) or "lne.gg" in str(link):
+            if row["tournament"]:
+                logging.info(f"BAD TOURNAMENT NO LINK: {str(row)}")
             continue
 
         # Extract components from the link
@@ -461,9 +466,7 @@ def process_tournament_file(file_path):
         # Append the row to the list
         rows.append([link, tourney_slug, event_slug, tier])
 
-    # print(len(rows))
-    # print(rows)
-    # exit(1)
+    print(len(rows))
     # Create a DataFrame from the rows list
     return pd.DataFrame(rows, columns=['Link', 'tourney_slug', 'event_slug', 'Tier'])
 
@@ -507,13 +510,13 @@ def get_major_tournaments_from_folder(directory_path):
     # Process each file in the directory
     for filename in os.listdir(directory_path):
         file_path = os.path.join(directory_path, filename)
-        print(file_path)
+        logging.info(file_path)
         try:
             # Process the file and concatenate it to the main DataFrame
             tournament_df = process_tournament_file(file_path)
             all_tournaments_df = pd.concat([all_tournaments_df, tournament_df], ignore_index=True)
         except ValueError as e:
-            print(f"Error processing {file_path}: {e}")
+            logging.info(f"Error processing {file_path}: {e}")
         #break
 
     return all_tournaments_df
@@ -531,7 +534,7 @@ def download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file):
     """
     # Convert the Google Sheets URL to the exportable Excel format
     excel_url = google_sheets_url.replace('/edit?gid=', '/export?format=xlsx&gid=')
-    print(excel_url)
+    logging.info(excel_url)
     
     # Download the Excel file directly from Google Sheets
     response = requests.get(excel_url)
@@ -543,15 +546,14 @@ def download_google_sheet_as_excel(google_sheets_url, sheet_name, output_file):
     
     # Open the Excel file and remove other sheets except the specified one
     wb = load_workbook(output_file)
-    print(wb.sheetnames)
+    logging.info(wb.sheetnames)
     for tab in wb.sheetnames:
         if tab != sheet_name:
-            print(tab, sheet_name)
             del wb[tab]
     
     # Save the updated Excel file with only the specified tab
     wb.save(output_file)
-    print(f"Downloaded and saved '{sheet_name}' tab to {output_file}.")
+    logging.info(f"Downloaded and saved '{sheet_name}' tab to {output_file}.")
 
 
 
@@ -565,7 +567,7 @@ def bucket_exists(bucket_name):
 def create_bucket(bucket_name):
     if not bucket_exists(bucket_name):
         s3.create_bucket(Bucket=bucket_name)
-        print(f"S3 bucket '{bucket_name}' created.")
+        logging.info(f"S3 bucket '{bucket_name}' created.")
 
 def table_exists(table_name):
     try:
@@ -583,16 +585,16 @@ def create_table(table_name):
             ProvisionedThroughput={'ReadCapacityUnits': 5, 'WriteCapacityUnits': 5}
         )
         table.wait_until_exists()
-        print(f"DynamoDB table '{table_name}' created.")
+        logging.info(f"DynamoDB table '{table_name}' created.")
 
 def upload_to_s3(bucket_name, file_path, key):
     s3.upload_file(file_path, bucket_name, key)
-    print(f"Uploaded {file_path} to {bucket_name}/{key}")
+    logging.info(f"Uploaded {file_path} to {bucket_name}/{key}")
 
 def update_dynamodb(table_name, item_data):
     table = dynamodb.Table(table_name)
     table.put_item(Item=item_data)
-    print(f"Updated DynamoDB with {item_data['tourney_slug']}")
+    logging.info(f"Updated DynamoDB with {item_data['tourney_slug']}")
 
 
 
@@ -609,7 +611,7 @@ def check_ddb_for_event(table_name, tourney_slug, event_slug):
         return len(response.get('Items', [])) > 0
 
     except ClientError as e:
-        print(f"Error querying DynamoDB: {e}")
+        logging.info(f"Error querying DynamoDB: {e}")
         return False
 
 def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_folder_path=None, excluded_tiers=("D", "C", "B", "B+", "A", "A+")):
@@ -663,45 +665,45 @@ def process_tournaments(google_sheets_url=None, sheet_name=None, tournament_fold
                 logging.error(f"Failed to retrieve details for tournament '{tourney_slug}': {e}")
                 continue
 
-            # # Prepare and save JSON data
-            # data = {
-            #     "link": google_sheets_url,
-            #     "event": event_slug,
-            #     "tier": tier,
-            #     "date": event_start_time.isoformat(),
-            #     "name": tournament_name,
-            #     "sets": sets
-            # }
-            # try:
-            #     with open(json_filename, 'w') as f:
-            #         json.dump(data, f)
-            #     logging.info(f"Saved tournament data for '{tourney_slug}' to file '{json_filename}'.")
-            # except Exception as e:
-            #     logging.error(f"Failed to save JSON file '{json_filename}': {e}")
-            #     continue
-            #
-            # # Upload JSON file to S3 and delete local copy
-            # try:
-            #     upload_to_s3(s3_bucket, json_filename, json_filename)
-            #     os.remove(json_filename)
-            #     logging.info(f"Uploaded '{json_filename}' to S3 bucket '{s3_bucket}' and deleted local file.")
-            # except Exception as e:
-            #     logging.error(f"Failed to upload '{json_filename}' to S3 or delete local file: {e}")
-            #     continue
+            # Prepare and save JSON data
+            data = {
+                "link": google_sheets_url,
+                "event": event_slug,
+                "tier": tier,
+                "date": event_start_time.isoformat(),
+                "name": tournament_name,
+                "sets": sets
+            }
+            try:
+                with open(json_filename, 'w') as f:
+                    json.dump(data, f)
+                logging.info(f"Saved tournament data for '{tourney_slug}' to file '{json_filename}'.")
+            except Exception as e:
+                logging.error(f"Failed to save JSON file '{json_filename}': {e}")
+                continue
 
-            # # Update DynamoDB with tournament metadata
-            # dynamo_item = {
-            #     "tourney_slug": tourney_slug,
-            #     "event_slug": event_slug,
-            #     "tier": tier,
-            #     "date": event_start_time.isoformat(),
-            #     "name": tournament_name
-            # }
-            # try:
-            #     update_dynamodb(dynamo_db_table_name, dynamo_item)
-            #     logging.info(f"Updated DynamoDB table '{dynamo_db_table_name}' with tournament '{tourney_slug}'.")
-            # except Exception as e:
-            #     logging.error(f"Failed to update DynamoDB for '{tourney_slug}': {e}")
+            # Upload JSON file to S3 and delete local copy
+            try:
+                upload_to_s3(s3_bucket, json_filename, json_filename)
+                os.remove(json_filename)
+                logging.info(f"Uploaded '{json_filename}' to S3 bucket '{s3_bucket}' and deleted local file.")
+            except Exception as e:
+                logging.error(f"Failed to upload '{json_filename}' to S3 or delete local file: {e}")
+                continue
+
+            # Update DynamoDB with tournament metadata
+            dynamo_item = {
+                "tourney_slug": tourney_slug,
+                "event_slug": event_slug,
+                "tier": tier,
+                "date": event_start_time.isoformat(),
+                "name": tournament_name
+            }
+            try:
+                update_dynamodb(dynamo_db_table_name, dynamo_item)
+                logging.info(f"Updated DynamoDB table '{dynamo_db_table_name}' with tournament '{tourney_slug}'.")
+            except Exception as e:
+                logging.error(f"Failed to update DynamoDB for '{tourney_slug}': {e}")
 
 
 
