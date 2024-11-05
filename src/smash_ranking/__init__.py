@@ -12,6 +12,19 @@ from time import time
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import cg
 from scipy.sparse import coo_matrix
+import os
+from src.utils.constants import LOG_FOLDER_PATH
+
+os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
+log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        logging.StreamHandler(),                    # Console handler
+                        logging.FileHandler(log_file_path, mode='a')  # File handler with append mode
+                    ])
 
 
 def process_game_sets_to_simple_format(game_sets, evaluation_level):
@@ -236,51 +249,58 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
 def run_elo(simple_game_sets):
     elo_ratings = defaultdict(lambda: 1200)  # Default initial rating of 1200
     games_played = defaultdict(int)  # Track total games played per player
-    first_iter = True
-    while first_iter:# or max(elo_ratings.values()) < 2800:
-        for matchup in simple_game_sets:
-            player1, player2, score1, score2 = matchup
-            total_games = score1 + score2
-            if total_games == 0:
-                continue
+    simple_game_sets_len = len(simple_game_sets)
+    logging.info(simple_game_sets_len)
+    #looped_unrolled_matchups = [matchup for s in [simple_game_sets for epoch in range(50)] for matchup in s]
+    for matchup_count in range(simple_game_sets_len*50):
+        matchup_idx = matchup_count % simple_game_sets_len
+        matchup = simple_game_sets[matchup_idx]
+        player1, player2, score1, score2 = matchup
+        total_games = score1 + score2
+        if total_games == 0:
+            continue
 
-            games_played[player1] += total_games
-            games_played[player2] += total_games
+        games_played[player1] += total_games
+        games_played[player2] += total_games
 
-            # # Determine if players are provisional based on games played
-            # is_provisional1 = games_played[player1] < 30
-            # is_provisional2 = games_played[player2] < 30
+        # # Determine if players are provisional based on games played
+        # is_provisional1 = games_played[player1] < 30
+        # is_provisional2 = games_played[player2] < 30
 
-            # # Skip Elo adjustment for established players facing provisional opponents
-            # if not is_provisional1 and is_provisional2:
-            #     continue
-            # if not is_provisional2 and is_provisional1:
-            #     continue
+        # # Skip Elo adjustment for established players facing provisional opponents
+        # if not is_provisional1 and is_provisional2:
+        #     continue
+        # if not is_provisional2 and is_provisional1:
+        #     continue
 
-            # Set K-factor based on experience and rating
-            def get_k_factor(player):
-                if games_played[player] < 30:  # Provisional player
-                    return 10
-                elif elo_ratings[player] >= 2400:  # Top player
-                    return 10
-                else:  # Established player
-                    return 10
+        # Set K-factor based on experience and rating
+        def get_k_factor(player):
+            if games_played[player] < 30:  # Provisional player
+                return 10
+            elif elo_ratings[player] >= 2400:  # Top player
+                return 10
+            else:  # Established player
+                return 10
 
-            k_factor1 = get_k_factor(player1)
-            k_factor2 = get_k_factor(player2)
+        k_factor1 = get_k_factor(player1)
+        k_factor2 = get_k_factor(player2)
 
-            # Calculate expected scores for both players
-            expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - elo_ratings[player1]) / 400))
-            expected_score2 = 1 - expected_score1
+        # Calculate expected scores for both players
+        expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - elo_ratings[player1]) / 400))
+        expected_score2 = 1 - expected_score1
 
-            # Calculate actual scores as proportions
-            actual_score1 = score1 / total_games
-            actual_score2 = score2 / total_games
+        # Calculate actual scores as proportions
+        actual_score1 = score1 / total_games
+        actual_score2 = score2 / total_games
 
-            # Update ratings based on K-factors and actual vs expected scores
-            elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
-            elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
-            first_iter = False
+        # Update ratings based on K-factors and actual vs expected scores
+        elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
+        elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
+        if matchup_count % 10000 == 0:
+            logging.info(matchup_idx)
+            logging.info(max(elo_ratings.values()))
+        if matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
+            break
 
     # Prepare results in desired format
     ratings = [{"player": player, "rating": rating, "uncertainty": 500/math.sqrt(games_played[player])} for player, rating in elo_ratings.items()]
