@@ -24,7 +24,6 @@ docker run -v /Users/deaxman/Downloads/all_smash_rankings:/data \
 
 
 
-
 docker build -f Dockerfile.api -t smash-ranker-image .
 
 docker run -v ~/.aws:/root/.aws smash-ranker-image
@@ -36,10 +35,9 @@ docker run -v ~/.aws:/root/.aws smash-ranker-image
 docker run -p 8000:5000 -v ~/.aws:/root/.aws smash-ranker-image gunicorn -w "1" --timeout 300 -b 0.0.0.0:5000 app:app
 
 
-curl -X POST http://127.0.0.1:8000/filter-campgrounds -H "Content-Type: application/json" -d '{
+curl -X GET "http://127.0.0.1:8000/get_ranking?ranking_to_run=elo&tier_options=P,S+,S,A+,A&start_date=2018-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets"
 
-    }'
-
+curl -X GET "http://127.0.0.1:8000/query_tournaments?tier_options=P,S+,S,A+,A&start_date=2024-07-16T00:00:00&end_date=2024-11-06T00:00:00"
 
 aws ecr create-repository --repository-name smash-ranker --region us-east-1
 
@@ -55,12 +53,33 @@ aws cloudformation create-stack --stack-name smash-ranker-api --template-body fi
 REGION=us-east-1
 
 
-curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/filter-campgrounds" \
+curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/get_ranking" \
 -H "x-api-key: smash_ranker_api_secret_key" \
 -H "Content-Type: application/json" \
 -d '{
-
+    'ranking_to_run': 'elo'
+    'tier_options': ("P", "S+", "S", "A+", "A")
+    'start_date': '2018-07-16T00:00:00'
+    'end_date':'2024-11-06T00:00:00'
+    'evaluation_level': 'sets'
     }'
+
+
+
+curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/query_tournaments" \
+-H "x-api-key: smash_ranker_api_secret_key" \
+-H "Content-Type: application/json" \
+-d '{
+    'tier_options': ("P", "S+", "S", "A+", "A")
+    'start_date': '2018-07-16T00:00:00'
+    'end_date':'2024-11-06T00:00:00'
+    }'
+
+
+
+
+
+
 
 
 

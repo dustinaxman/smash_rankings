@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install gunicorn
 
 # Copy the rest of the application files into the container
 COPY app.py /app/app.py
-COPY camp_finder/ /app/camp_finder/
+COPY src/ /app/src/
 
 # Expose port 5000 for Flask
 EXPOSE 5000

@@ -21,3 +21,6 @@ six==1.16.0
 trueskill==0.4.5
 tzdata==2024.2
 urllib3==2.2.3
+Flask==3.0.3
+Flask-Cors==5.0.0
+glicko2==2.1.0

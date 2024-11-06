@@ -157,6 +157,8 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
 @app.route('/get_ranking', methods=['GET'])
 def get_ranking():
     # Extract parameters from the request
+    logging.info("request.args:")
+    logging.info(request.args)
     ranking_to_run = request.args.get('ranking_to_run')
     if ranking_to_run not in {"trueskill", "elo", "glicko2", "bradleyterry"}:
         return jsonify({"error": "Invalid ranking_to_run value"}), 400
