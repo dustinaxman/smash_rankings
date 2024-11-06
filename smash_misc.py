@@ -1,4 +1,194 @@
 
+d = {}
+for i in range(100000):
+    if i%100 == 0:
+        print(i)
+    d[tuple([f"supernova-2024/event/ultimate-1v1-singles{i}"]*400)] = {(str(p)+str(i)): p for p in range(100)}
+
+
+
+from pympler import asizeof
+
+# Using `asizeof` from pympler to calculate the memory size in MB
+dict_most_accurate_size_mb = asizeof.asizeof(d) / (1024 * 1024)  # Convert bytes to MB
+dict_most_accurate_size_mb
+
+
+
+import sys
+from collections.abc import Iterable
+
+def get_size_mb(obj, seen=None):
+    """
+    Recursively estimates the memory usage of a Python object in megabytes.
+    This uses the sys.getsizeof() function to get the size of the object.
+    """
+    seen = seen or set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    size = sys.getsizeof(obj)
+    if isinstance(obj, dict):
+        size += sum(get_size_mb(k, seen) + get_size_mb(v, seen) for k, v in obj.items())
+    elif isinstance(obj, (list, tuple, set, Iterable)) and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum(get_size_mb(item, seen) for item in obj)
+    return size / (1024 * 1024)
+
+
+get_size_mb(d)
+
+
+
+
+query PhaseGroupSets($phaseGroupId: ID!, $page:Int!, $perPage:Int!){
+  phaseGroup(id:$phaseGroupId){
+    sets(
+      page: $page
+      perPage: $perPage
+      sortType: STANDARD
+    ){
+      pageInfo{
+        total
+      }
+      nodes{
+        slots{
+          standing{
+          placement
+          stats{
+            score{
+              value
+            }
+          }
+          }
+          entrant{
+            name
+            participants{
+              player{
+                user{
+                  discriminator
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+{
+  "phaseGroupId": 2652523,
+  "page": 1,
+  "perPage": 10
+}
+
+
+
+
+
+
+
+
+
+
+2024-11-03 21:40:58,785 - INFO - Saved tournament data for 'ludwig-smash-invitational' to file 'ludwig-smash-invitational-ultimate-singles-main-event.json'.
+2024-11-03 21:40:59,263 - INFO - Uploaded 'ludwig-smash-invitational-ultimate-singles-main-event.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:40:59,366 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'ludwig-smash-invitational'.
+
+
+2024-11-03 21:41:19,052 - INFO - Retrieved details for tournament 'couchwarriors-vic-march-ranking-battle-2021-smash': Name=CouchWarriors VIC March Ranking Battle (2021) - Smash, Date=2021-03-27 00:00:00, Sets=196.
+2024-11-03 21:41:19,060 - INFO - Saved tournament data for 'couchwarriors-vic-march-ranking-battle-2021-smash' to file 'couchwarriors-vic-march-ranking-battle-2021-smash-smash-ultimate-singles.json'.
+2024-11-03 21:41:19,833 - INFO - Uploaded 'couchwarriors-vic-march-ranking-battle-2021-smash-smash-ultimate-singles.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:41:19,943 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'couchwarriors-vic-march-ranking-battle-2021-smash'.
+
+
+
+2024-11-03 21:41:38,984 - INFO - Retrieved details for tournament 'kowloon-4': Name=九龍-KOWLOON-＃4, Date=2023-01-21 01:00:00, Sets=665.
+2024-11-03 21:41:38,998 - INFO - Saved tournament data for 'kowloon-4' to file 'kowloon-4-kowloon-sp.json'.
+2024-11-03 21:41:39,840 - INFO - Uploaded 'kowloon-4-kowloon-sp.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:41:39,940 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'kowloon-4'.
+
+
+
+2024-11-03 21:41:47,941 - INFO - Retrieved details for tournament 'rey-del-agua': Name=Rey del Agua, Date=2023-09-23 18:00:00, Sets=210.
+2024-11-03 21:41:47,945 - INFO - Saved tournament data for 'rey-del-agua' to file 'rey-del-agua-singles.json'.
+2024-11-03 21:41:48,657 - INFO - Uploaded 'rey-del-agua-singles.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:41:48,765 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'rey-del-agua'.
+
+
+
+2024-11-03 21:42:05,936 - INFO - Retrieved details for tournament 'ascension-ii': Name=Ascension II, Date=2019-02-16 16:00:00, Sets=422.
+2024-11-03 21:42:05,946 - INFO - Saved tournament data for 'ascension-ii' to file 'ascension-ii-ultimate-singles.json'.
+2024-11-03 21:42:06,618 - INFO - Uploaded 'ascension-ii-ultimate-singles.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:42:06,709 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'ascension-ii'.
+
+
+2024-11-03 21:43:48,929 - INFO - Retrieved details for tournament 'bit-master-mty-x-thunder-struck-2024': Name=BIT MASTER MTY X THUNDER STRUCK 2024, Date=2024-09-15 01:00:00, Sets=40.
+2024-11-03 21:43:48,934 - INFO - Saved tournament data for 'bit-master-mty-x-thunder-struck-2024' to file 'bit-master-mty-x-thunder-struck-2024-super-smash-bros-ultimate.json'.
+2024-11-03 21:43:49,518 - INFO - Uploaded 'bit-master-mty-x-thunder-struck-2024-super-smash-bros-ultimate.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:43:49,615 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'bit-master-mty-x-thunder-struck-2024'.
+
+
+2024-11-03 21:44:01,271 - INFO - Retrieved details for tournament 'bit-master-mty-22-secret-edition': Name=Bit Master Mty #22: Secret Edition, Date=2024-09-07 19:00:00, Sets=373.
+2024-11-03 21:44:01,283 - INFO - Saved tournament data for 'bit-master-mty-22-secret-edition' to file 'bit-master-mty-22-secret-edition-super-smash-bros-ultimate-singles.json'.
+2024-11-03 21:44:01,955 - INFO - Uploaded 'bit-master-mty-22-secret-edition-super-smash-bros-ultimate-singles.json' to S3 bucket 'smash-ranking-tournament-data' and deleted local file.
+2024-11-03 21:44:02,050 - INFO - Updated DynamoDB table 'smash-ranking-tournament-table' with tournament 'bit-master-mty-22-secret-edition'.
+
+
+aws s3 rm s3://smash-ranking-tournament-data/ludwig-smash-invitational-ultimate-singles-main-event.json
+aws s3 rm s3://smash-ranking-tournament-data/couchwarriors-vic-march-ranking-battle-2021-smash-smash-ultimate-singles.json
+aws s3 rm s3://smash-ranking-tournament-data/kowloon-4-kowloon-sp.json
+aws s3 rm s3://smash-ranking-tournament-data/rey-del-agua-singles.json
+aws s3 rm s3://smash-ranking-tournament-data/ascension-ii-ultimate-singles.json
+aws s3 rm s3://smash-ranking-tournament-data/bit-master-mty-x-thunder-struck-2024-super-smash-bros-ultimate.json
+aws s3 rm s3://smash-ranking-tournament-data/bit-master-mty-22-secret-edition-super-smash-bros-ultimate-singles.json
+
+
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "ludwig-smash-invitational"}}'
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "couchwarriors-vic-march-ranking-battle-2021-smash"}}'
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "kowloon-4"}}'
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "rey-del-agua"}}'
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "ascension-ii"}}'
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "bit-master-mty-x-thunder-struck-2024"}}'
+aws dynamodb delete-item --table-name smash-ranking-tournament-table --key '{"tourney_slug": {"S": "bit-master-mty-22-secret-edition"}}'
+
+
+
+
+{
+            "eventId": 814979,
+            "page": 9,
+            "perPage": 40
+}
+
+{
+            "eventId": 814979,
+            "page": 15,
+            "perPage": 40
+}
+
+{'eventId': 959594, 'page': 6, 'perPage': 40}
+
+lvl-up-expo-2019
+
+{'eventId': 243115, 'page': 10, 'perPage': 40}
+
+{'eventId': 243115, 'page': 23, 'perPage': 40}
+
+
+
+
+
+
+
+
+
+
+
+
 google_sheets_url = 'https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=SHEET_GID'  # Replace with your Google Sheet URL
 sheet_name = 'Tab Name'  # Replace with the name of the sheet to keep
 output_file = 'output.xlsx'

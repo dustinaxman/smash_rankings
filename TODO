@@ -1,10 +1,9 @@
 
 
+make the BT uncertainty faster
+make everything faster and lower memory
 
-
-speed up uncertainty calc and all calcs
-check uncertainty
-check all rankings
+add a cache to get_player_rating but with the tournaments not the sets
 
 
 
@@ -24,7 +23,7 @@ from src.smash_ranking import get_player_rating
 from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
 
-all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00') #fill in these params with the passed params, validating format etc
+all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00') #fill in these params with the passed params, validating format etc
 
 ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
 
@@ -46,7 +45,7 @@ This is the dockerfile that will be used to run this flask app:
 
 
 # Use an official Python runtime as a parent image
-FROM python:3.9-alpine
+FROM python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -70,16 +69,6 @@ CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "app:app"]
 
 
 test out the api that gives the rankings
-
-
-
-
-
-
-
-
-
-
 
 
 

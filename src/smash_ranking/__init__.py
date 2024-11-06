@@ -39,6 +39,8 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
         player_2_name = str(game_set["player_2"])
         player_1_id = game_set["id_1"]
         player_2_id = game_set["id_2"]
+        # if "Zomba" in [player_1_name, player_2_name]:
+        #     print(game_set["score_1"], game_set["score_2"], player_1_name, player_2_name, game_set["winner_id"], player_1_id, player_2_id)
         if player_1_id is None or player_2_id is None:
             continue
         if game_set["score_1"] is None or game_set["score_2"] is None:
@@ -252,16 +254,18 @@ def run_elo(simple_game_sets):
     simple_game_sets_len = len(simple_game_sets)
     logging.info(simple_game_sets_len)
     #looped_unrolled_matchups = [matchup for s in [simple_game_sets for epoch in range(50)] for matchup in s]
-    for matchup_count in range(simple_game_sets_len*50):
+    #simple_game_sets_len*100
+    # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
+    for matchup_count in range(int(5000000 / simple_game_sets_len) * simple_game_sets_len):
         matchup_idx = matchup_count % simple_game_sets_len
         matchup = simple_game_sets[matchup_idx]
         player1, player2, score1, score2 = matchup
         total_games = score1 + score2
         if total_games == 0:
             continue
-
-        games_played[player1] += total_games
-        games_played[player2] += total_games
+        if matchup_count < simple_game_sets_len:
+            games_played[player1] += total_games
+            games_played[player2] += total_games
 
         # # Determine if players are provisional based on games played
         # is_provisional1 = games_played[player1] < 30
@@ -296,32 +300,37 @@ def run_elo(simple_game_sets):
         # Update ratings based on K-factors and actual vs expected scores
         elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
         elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
-        if matchup_count % 10000 == 0:
-            logging.info(matchup_idx)
-            logging.info(max(elo_ratings.values()))
-        if matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
-            break
+        # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
+        #     break
 
     # Prepare results in desired format
     ratings = [{"player": player, "rating": rating, "uncertainty": 500/math.sqrt(games_played[player])} for player, rating in elo_ratings.items()]
     return ratings
 
+
 def run_trueskill(simple_game_sets):
     env = ts.TrueSkill()
     ts_ratings = defaultdict(lambda: env.create_rating())
+
     for matchup in simple_game_sets:
         player1, player2, score1, score2 = matchup
         total_games = score1 + score2
         if total_games == 0:
-            return
-        if score1 > score2:
-            new_rating1, new_rating2 = env.rate_1vs1(ts_ratings[player1], ts_ratings[player2])
-        elif score2 > score1:
-            new_rating2, new_rating1 = env.rate_1vs1(ts_ratings[player2], ts_ratings[player1])
-        else:
-            new_rating1, new_rating2 = env.rate_1vs1(ts_ratings[player1], ts_ratings[player2], drawn=True)
-        ts_ratings[player1] = new_rating1
-        ts_ratings[player2] = new_rating2
+            continue
+
+        # Unroll multiple games into individual 1-0 or 0-1 results
+        game_sequence = []
+        game_sequence.extend([1] * int(score1))  # Add player1's wins
+        game_sequence.extend([0] * int(score2))  # Add player2's wins
+        # Process each individual game
+        for game_result in game_sequence:
+            if game_result == 1:  # Player 1 wins
+                new_rating1, new_rating2 = env.rate_1vs1(ts_ratings[player1], ts_ratings[player2])
+            else:  # Player 2 wins
+                new_rating2, new_rating1 = env.rate_1vs1(ts_ratings[player2], ts_ratings[player1])
+            ts_ratings[player1] = new_rating1
+            ts_ratings[player2] = new_rating2
+
     ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": 1.96 * r[1].sigma} for r in ts_ratings.items()]
     return ratings
 

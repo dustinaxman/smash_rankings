@@ -15,14 +15,61 @@ aws dynamodb put-item \
         "sheet_name": {"S": "TTS by Date (2024.2)"}
     }'
 
-
 docker build -f Dockerfile.tournament_updater -t tournament_updater_image .
-
 
 docker run -v /Users/deaxman/Downloads/all_smash_rankings:/data \
            -v ~/.aws:/root/.aws \
-           tournament_updater_image \
-           --tournament_folder_path /data
+           tournament_updater_image
+
+
+
+
+
+docker build -f Dockerfile.api -t smash-ranker-image .
+
+docker run -v ~/.aws:/root/.aws smash-ranker-image
+
+
+198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/smash-ranker:${ImageTag}
+
+
+docker run -p 8000:5000 -v ~/.aws:/root/.aws smash-ranker-image gunicorn -w "1" --timeout 300 -b 0.0.0.0:5000 app:app
+
+
+curl -X POST http://127.0.0.1:8000/filter-campgrounds -H "Content-Type: application/json" -d '{
+
+    }'
+
+
+aws ecr create-repository --repository-name smash-ranker --region us-east-1
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 198449958201.dkr.ecr.us-east-1.amazonaws.com
+
+docker tag smash-ranker:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker:latest
+
+
+
+aws cloudformation create-stack --stack-name smash-ranker-api --template-body file://smash_ranking_api_cloudformation_template_serverless.yaml --parameters ParameterKey=ImageTag,ParameterValue=latest ParameterKey=SmashRankerAPIKey,ParameterValue=smash_ranker_api_secret_key --capabilities CAPABILITY_IAM
+
+
+REGION=us-east-1
+
+
+curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/filter-campgrounds" \
+-H "x-api-key: smash_ranker_api_secret_key" \
+-H "Content-Type: application/json" \
+-d '{
+
+    }'
+
+
+
+
+
+
+
+
+
 
 
 
