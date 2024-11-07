@@ -12,6 +12,8 @@ import logging
 from src.utils.constants import LOG_FOLDER_PATH, THRESHOLD_PLAYER_NUM_TO_RETURN, MAX_CACHE_SIZE
 from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, query_tournaments, download_s3_files
 from src.smash_ranking import get_player_rating
+from boto3.dynamodb.types import TypeSerializer
+from decimal import Decimal
 
 app = Flask(__name__)
 CORS(app)
@@ -31,45 +33,78 @@ DEFAULT_START_DATE = '2018-07-16T00:00:00'
 DEFAULT_END_DATE = '2024-11-06T00:00:00'
 TIER_OPTIONS = ("P", "S+", "S", "A+", "A")
 
-def table_exists(table_name):
-    try:
-        dynamodb.Table(table_name).load()
-        return True
-    except ClientError:
-        return False
+dynamodb = boto3.resource("dynamodb")
 
 def create_table(table_name):
-    if not table_exists(table_name):
+    """Create DynamoDB table with correct schema if it doesn't exist"""
+    try:
         table = dynamodb.create_table(
             TableName=table_name,
-            KeySchema=[{'AttributeName': 'cache_key', 'KeyType': 'HASH'}, {'AttributeName': 'last_accessed', 'KeyType': 'RANGE'}],
-            AttributeDefinitions=[{'AttributeName': 'cache_key', 'AttributeType': 'S'}, {'AttributeName': 'last_accessed', 'AttributeType': 'N'}],
-            ProvisionedThroughput={'ReadCapacityUnits': 20, 'WriteCapacityUnits': 20}
+            KeySchema=[
+                {'AttributeName': 'cache_key', 'KeyType': 'HASH'}  # Removed composite key
+            ],
+            AttributeDefinitions=[
+                {'AttributeName': 'cache_key', 'AttributeType': 'S'}
+            ],
+            ProvisionedThroughput={
+                'ReadCapacityUnits': 20,
+                'WriteCapacityUnits': 20
+            }
         )
         table.wait_until_exists()
-        logging.info(f"DynamoDB table '{table_name}' created.")
+        logging.info(f"DynamoDB table '{table_name}' created successfully")
+        return table
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceInUseException':
+            logging.info(f"Table {table_name} already exists")
+            return dynamodb.Table(table_name)
+        raise
 
 
-# Set up DynamoDB connection
-dynamodb = boto3.resource("dynamodb")
 create_table("SmashRankingCache")
 table = dynamodb.Table("SmashRankingCache")
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super(DecimalEncoder, self).default(obj)
+
+
+class DecimalSerializer:
+    def __init__(self):
+        self.serializer = TypeSerializer()
+
+    def _convert_floats(self, obj):
+        if isinstance(obj, float):
+            return Decimal(str(obj))
+        elif isinstance(obj, dict):
+            return {k: self._convert_floats(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_floats(i) for i in obj]
+        return obj
+
+    def serialize(self, value):
+        decimal_value = self._convert_floats(value)
+        return self.serializer.serialize(decimal_value)
+
 
 def md5_encode_key(data):
     """Encodes any Python object as an MD5 hash to use as a unique cache key.
        The hashing is order-independent for dictionaries and lists to ensure consistent keys.
     """
-
     # Recursive function to sort and serialize the input data
     def make_deterministic(obj):
         if isinstance(obj, dict):
-            # Sort dictionaries by key and process values recursively
             return {k: make_deterministic(v) for k, v in sorted(obj.items())}
         elif isinstance(obj, list):
-            # Sort lists and process elements recursively
-            return sorted(make_deterministic(i) for i in obj)
+            # If elements are dictionaries, convert each dictionary to a sorted tuple of items
+            return sorted(
+                make_deterministic(i) if not isinstance(i, dict) else tuple(sorted(i.items()))
+                for i in obj
+            )
         else:
-            # Return other data types as-is
             return obj
 
     # Make data deterministic and serialize to JSON
@@ -80,56 +115,96 @@ def md5_encode_key(data):
     return hashlib.md5(serialized_data.encode()).hexdigest()
 
 
+def convert_floats_to_decimal(obj):
+    """Recursively converts float values to Decimal"""
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: convert_floats_to_decimal(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats_to_decimal(i) for i in obj]
+    return obj
+
+def clean_empty_values(d):
+    """Recursively remove empty strings, None values, and empty dictionaries"""
+    if not isinstance(d, (dict, list)):
+        return d
+    if isinstance(d, list):
+        return [v for v in (clean_empty_values(v) for v in d) if v is not None]
+    return {k: v for k, v in ((k, clean_empty_values(v)) for k, v in d.items())
+            if k and v is not None and v != "" and v != {}}
+
+
 def store_in_cache(param_list, result):
-    # Generate MD5 hash key from list of strings
+    """Store item in cache with proper error handling"""
     cache_key = md5_encode_key(param_list)
+    timestamp = int(time())
 
-    # Set the current timestamp as the last_accessed time
-    last_accessed = int(time())
+    try:
+        # Convert all floats to Decimals
+        decimal_result = convert_floats_to_decimal(result)
 
-    # Store the item in the cache
-    table.put_item(Item={'cache_key': cache_key, 'result': result, 'last_accessed': last_accessed})
+        # Create the item with converted values
+        item = {
+            'cache_key': cache_key,
+            'result': decimal_result,
+            'last_accessed': timestamp
+        }
 
-    # Check the number of items in the cache
-    response = table.scan(ProjectionExpression="cache_key")
-    item_count = len(response['Items'])
+        # Clean any empty values that might cause DynamoDB validation errors
+        cleaned_item = clean_empty_values(item)
 
-    # If we exceed the cache size, delete the oldest items
-    if item_count > MAX_CACHE_SIZE:
-        # Query for oldest items
-        old_items = table.query(
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('cache_key').eq('cache') &
-                                  boto3.dynamodb.conditions.Key('last_accessed').lt(last_accessed),
-            Limit=item_count - MAX_CACHE_SIZE,
-            ScanIndexForward=True  # Sort ascending (oldest first)
+        # Store in DynamoDB
+        table.put_item(Item=cleaned_item)
+
+        # Clean up old items if necessary
+        response = table.scan(
+            ProjectionExpression="cache_key,last_accessed",
+            Select='SPECIFIC_ATTRIBUTES'
         )
 
-        # Delete the oldest items
-        with table.batch_writer() as batch:
-            for item in old_items['Items']:
-                batch.delete_item(Key={'cache_key': item['cache_key'], 'last_accessed': item['last_accessed']})
+        items = response['Items']
+        if len(items) > MAX_CACHE_SIZE:
+            # Sort by last_accessed timestamp
+            items.sort(key=lambda x: x['last_accessed'])
+            # Delete oldest items
+            items_to_delete = items[:len(items) - MAX_CACHE_SIZE]
+
+            with table.batch_writer() as batch:
+                for item in items_to_delete:
+                    batch.delete_item(Key={'cache_key': item['cache_key']})
+
+    except ClientError as e:
+        logging.error(f"Error storing item in cache: {str(e)}")
+        logging.error(f"Attempted to store item: {cleaned_item}")
+        raise
+
 
 def get_from_cache(param_list):
-    """Checks if an item exists in the cache. If found, returns the item and updates access time; otherwise, returns None."""
-    # Generate MD5 hash key from list of strings
+    """Retrieve item from cache with proper error handling"""
     cache_key = md5_encode_key(param_list)
 
-    # Retrieve the item from the cache
-    response = table.get_item(Key={'cache_key': cache_key})
-    item = response.get('Item')
-
-    if item:
-        # Item found, update last_accessed timestamp
-        last_accessed = int(time())
-        table.update_item(
+    try:
+        response = table.get_item(
             Key={'cache_key': cache_key},
-            UpdateExpression="SET last_accessed = :last_accessed",
-            ExpressionAttributeValues={':last_accessed': last_accessed}
+            ConsistentRead=True
         )
-        return item['result']
-    else:
-        # Item not found
+
+        item = response.get('Item')
+        if item:
+            # Update last_accessed timestamp
+            timestamp = int(time())
+            table.update_item(
+                Key={'cache_key': cache_key},
+                UpdateExpression="SET last_accessed = :timestamp",
+                ExpressionAttributeValues={':timestamp': timestamp}
+            )
+            return item['result']
         return None
+
+    except ClientError as e:
+        logging.error(f"Error retrieving item from cache: {str(e)}")
+        raise
 
 
 def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, evaluation_level):
@@ -139,20 +214,19 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
         end_date=end_date
     )
     params = {"tier_options": tier_options, "ranking_to_run": ranking_to_run, "evaluation_level": evaluation_level, "tournament_list": ["{}-{}".format(result["tourney_slug"], result["event_slug"]) for result in queried_tournaments]}
-    result = get_from_cache(params)
-    if result is None:
+    ratings_player_name_added = get_from_cache(params)
+    if ratings_player_name_added is None:
         all_s3_files_to_download = ["{}-{}.json".format(result["tourney_slug"], result["event_slug"]) for result in queried_tournaments]
         download_s3_files(all_s3_files_to_download, overwrite=False)
         all_sets = get_all_sets_from_tournament_files(all_s3_files_to_download)
-        ranking_to_run = "trueskill"
         ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run,
                                                                      evaluation_level="sets")
-        result = {"ratings": ratings, "id_to_player_name": id_to_player_name, "player_to_id": player_to_id}
-        store_in_cache(params, result)
-    ratings = [
-        {"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in
-        result["ratings"]]
-    return sorted(ratings, key=lambda a: a["rating"], reverse=True)[:THRESHOLD_PLAYER_NUM_TO_RETURN]
+        result = {"ratings": sorted(ratings, key=lambda a: a["rating"], reverse=True)[:THRESHOLD_PLAYER_NUM_TO_RETURN], "id_to_player_name": id_to_player_name, "player_to_id": player_to_id}
+        ratings_player_name_added = [
+            {"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in
+            result["ratings"]]
+        store_in_cache(params, ratings_player_name_added)
+    return ratings_player_name_added
 
 @app.route('/get_ranking', methods=['GET'])
 def get_ranking():

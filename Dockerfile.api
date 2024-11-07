@@ -16,4 +16,4 @@ EXPOSE 5000
 
 # Run the application with Gunicorn
 # 4 worker processes (-w 4) and bind to all IPs on port 5000 (-b 0.0.0.0:5000)
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "--timeout", "300", "app:app"]

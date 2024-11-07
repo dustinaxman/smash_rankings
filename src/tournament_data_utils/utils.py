@@ -2,6 +2,8 @@ from boto3.dynamodb.conditions import Key, Attr
 import json
 import boto3
 from src.utils.constants import tier_mapper, dynamo_db_table_name, s3_bucket, LOCAL_TOURNAMENT_DATA_DIR
+#from concurrent.futures import ThreadPoolExecutor, as_completed
+#from pathlib import Path
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
