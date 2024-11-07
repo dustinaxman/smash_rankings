@@ -1,62 +1,102 @@
 body {
-  background-color: #ffffff; /* Set to white for light theme */
-  color: #000000; /* Set to black for standard text color */
-}
-
-.app-container {
-  background-color: #ffffff;
-  color: #000000;
-}
-
-.title {
-  margin-bottom: 1.5rem;
-  color: #76c7c0;
-}
-
-.query-form {
-  margin-bottom: 1rem;
-}
-
-.compute-button {
-  margin: 1rem 0;
-  background-color: #4caf50;
-  color: #ffffff;
-}
-
-.content-grid {
-  margin-top: 1rem;
-}
-
-.section-title {
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+  background-color: #f5f5f5;
   color: #333333;
 }
 
+.app-container {
+  padding: 2rem;
+  text-align: center;
+  max-width: 100%;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #4CAF50; /* Green color for the main title */
+  margin-bottom: 1.5rem;
+}
+
+.query-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
+}
+
+.compute-button {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #4CAF50;
+  color: #ffffff;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
+}
+
+.compute-button:hover {
+  background-color: #43a047; /* Darker green on hover */
+}
+
+.content-grid {
+  margin-top: 1.5rem;
+}
+
 .tourney-list, .ranking-table {
-  background-color: #f9f9f9; /* Light background for tables */
+  background-color: #ffffff;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 100%; /* Ensure full width within the grid layout */
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 1rem;
 }
 
 .parameters {
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-  color: #b0bec5;
+  font-size: 0.9rem;
+  color: #777777;
+  margin-bottom: 1rem;
 }
 
 table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th, table td {
+  padding: 0.75rem;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+table th {
+  background-color: #4CAF50;
   color: #ffffff;
+  font-weight: 600;
+  border-radius: 8px 8px 0 0;
 }
 
-.MuiTableCell-head {
-  color: #76c7c0;
-  font-weight: bold;
-}
-
-.MuiPaper-root {
-  background-color: #1e1e1e !important;
+table td {
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .loading-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100px; /* Adjust as needed for table space */
+  height: 100px;
+}
+
+@media (max-width: 768px) {
+  .query-form {
+    flex-direction: column;
+  }
 }
