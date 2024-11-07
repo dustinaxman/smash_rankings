@@ -1,0 +1,59 @@
+body {
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+  background-color: #121212;
+  color: #ffffff;
+}
+
+.app-container {
+  padding: 2rem;
+  text-align: center;
+}
+
+.title {
+  margin-bottom: 1.5rem;
+  color: #76c7c0;
+}
+
+.query-form {
+  margin-bottom: 1rem;
+}
+
+.compute-button {
+  margin: 1rem 0;
+  background-color: #4caf50;
+  color: #ffffff;
+}
+
+.content-grid {
+  margin-top: 1rem;
+}
+
+.section-title {
+  color: #76c7c0;
+  margin-bottom: 0.5rem;
+}
+
+.tourney-list, .ranking-table {
+  padding: 1rem;
+  background-color: #1e1e1e;
+}
+
+.parameters {
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: #b0bec5;
+}
+
+table {
+  color: #ffffff;
+}
+
+.MuiTableCell-head {
+  color: #76c7c0;
+  font-weight: bold;
+}
+
+.MuiPaper-root {
+  background-color: #1e1e1e !important;
+}

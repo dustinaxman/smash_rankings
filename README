@@ -35,10 +35,8 @@ docker run -v ~/.aws:/root/.aws smash-ranker-image
 docker run -p 8000:5000 -v ~/.aws:/root/.aws smash-ranker-image gunicorn -w "1" --timeout 300 -b 0.0.0.0:5000 app:app
 
 
-curl -X GET "http://127.0.0.1:8000/get_ranking?ranking_to_run=elo&tier_options=P,S+,S,A+,A&start_date=2018-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets"
-
-curl -X GET "http://127.0.0.1:8000/query_tournaments?tier_options=P,S+,S,A+,A&start_date=2024-07-16T00:00:00&end_date=2024-11-06T00:00:00"
-
+curl -s "http://127.0.0.1:8000/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B,A&start_date=2024-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets" | jq .
+curl -X GET "http://127.0.0.1:8000/query_tournaments?tier_options=P,S%2B,S,A%2B,A&start_date=2021-06-16T00:00:00&end_date=2022-01-06T00:00:00" | jq .
 aws ecr create-repository --repository-name smash-ranker --region us-east-1
 
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 198449958201.dkr.ecr.us-east-1.amazonaws.com
@@ -80,14 +78,48 @@ curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/query_tou
 
 
 
+npx create-react-app smash-ranking-website
+
+
+cd smash-ranking-website
+
+npm install @mui/material @emotion/react @emotion/styled
+
+npm install axios
+npm install query-string
+
+
+#change all of the files!!!
+
+npm start
 
 
 
+npm run build
+
+aws s3api create-bucket --bucket smash-ranking-website --region us-east-1 --create-bucket-configuration LocationConstraint=us-east-1
+aws s3 website s3://smash-ranking-website/ --index-document index.html --error-document 404.html
+
+aws s3 sync ./build/ s3://smash-ranking-website/
+
+cat <<EOL > bucket-policy.json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::smash-ranking-website/*"
+    }
+  ]
+}
+EOL
 
 
 
-
-
+aws s3api put-bucket-policy --bucket smash-ranking-website --policy file://bucket-policy.json
+http://smash-ranking-website.s3-website-us-east-1.amazonaws.com
 
 
 

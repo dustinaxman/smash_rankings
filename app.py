@@ -214,6 +214,7 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
         end_date=end_date
     )
     params = {"tier_options": tier_options, "ranking_to_run": ranking_to_run, "evaluation_level": evaluation_level, "tournament_list": ["{}-{}".format(result["tourney_slug"], result["event_slug"]) for result in queried_tournaments]}
+    logging.info(f"Get rankings with: {params}")
     ratings_player_name_added = get_from_cache(params)
     if ratings_player_name_added is None:
         all_s3_files_to_download = ["{}-{}.json".format(result["tourney_slug"], result["event_slug"]) for result in queried_tournaments]
@@ -231,6 +232,7 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
 @app.route('/get_ranking', methods=['GET'])
 def get_ranking():
     # Extract parameters from the request
+    logging.info("get_ranking called with:")
     logging.info("request.args:")
     logging.info(request.args)
     ranking_to_run = request.args.get('ranking_to_run')
@@ -260,6 +262,9 @@ def get_ranking():
 
 @app.route('/query_tournaments', methods=['GET'])
 def query_tournaments_endpoint():
+    logging.info("query_tournaments_endpoint called with:")
+    logging.info("request.args:")
+    logging.info(request.args)
     tier_options = request.args.get('tier_options', default=TIER_OPTIONS)
     tier_options = tuple(tier_options.split(',')) if isinstance(tier_options, str) else tier_options
 
@@ -272,7 +277,6 @@ def query_tournaments_endpoint():
         end_date = datetime.fromisoformat(end_date)
     except ValueError:
         return jsonify({"error": "Invalid date format"}), 400
-
     # Query tournaments
     tournaments = query_tournaments(tier_options=tier_options, start_date=start_date.isoformat(), end_date=end_date.isoformat())
     return jsonify(tournaments)
