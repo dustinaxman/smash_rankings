@@ -71,6 +71,39 @@ const App = () => {
     }
   };
 
+  // Load state from URL if present and trigger data fetching
+  useEffect(() => {
+    const params = queryString.parse(window.location.search);
+    let shouldFetch = false;
+
+    if (params.tierOptions) {
+      setTierOptions(params.tierOptions.split(','));
+      shouldFetch = true;
+    }
+    if (params.startDate) {
+      setStartDate(params.startDate);
+      shouldFetch = true;
+    }
+    if (params.endDate) {
+      setEndDate(params.endDate);
+      shouldFetch = true;
+    }
+    if (params.rankingType) {
+      setRankingType(params.rankingType);
+      shouldFetch = true;
+    }
+    if (params.evaluationLevel) {
+      setEvaluationLevel(params.evaluationLevel);
+      shouldFetch = true;
+    }
+
+    // Trigger both fetch functions if URL parameters were found
+    if (shouldFetch) {
+      fetchTourneySlugs();
+      fetchRankings();
+    }
+  }, []);
+
   // Handle state updates and update URL
   const handleUpdate = (newState) => {
     setTierOptions(newState.tierOptions);
