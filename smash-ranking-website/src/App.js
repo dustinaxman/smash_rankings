@@ -22,23 +22,24 @@ const App = () => {
 
   // Function to fetch tournament slugs
   const fetchTourneySlugs = async () => {
-    setLoadingTournaments(true);
-    const queryParams = queryString.stringify({
-      tier_options: tierOptions.join(','),
-      start_date: startDate,
-      end_date: endDate,
-    });
+  setLoadingTournaments(true);
+  const queryParams = queryString.stringify({
+    tier_options: tierOptions.join(','),
+    start_date: startDate,
+    end_date: endDate,
+  });
 
-    try {
-      const response = await axios.get(
-        `http://127.0.0.1:8000/query_tournaments?${queryParams}`
-      );
-      setTourneySlugs(response.data.map(item => item.tourney_slug));
-    } catch (error) {
-      console.error("Error fetching tournaments:", error);
-    } finally {
-      setLoadingTournaments(false);
-    }
+  try {
+    const response = await axios.get(
+      `http://127.0.0.1:8000/query_tournaments?${queryParams}`
+    );
+    // Store each full tournament object in `tourneySlugs`
+    setTourneySlugs(response.data);
+  } catch (error) {
+    console.error("Error fetching tournaments:", error);
+  } finally {
+    setLoadingTournaments(false);
+  }
   };
 
   // Function to fetch rankings
