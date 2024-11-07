@@ -1,7 +1,8 @@
 import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography } from '@mui/material';
+import CircularProgress from '@mui/material/CircularProgress';
 
-const RankingTable = ({ rankings, parameters }) => {
+const RankingTable = ({ rankings, parameters, loading }) => {
   const { startDate, endDate, tierOptions, rankingType, evaluationLevel } = parameters;
 
   return (
@@ -11,26 +12,32 @@ const RankingTable = ({ rankings, parameters }) => {
         Date Range: {startDate} to {endDate} | Tiers: {tierOptions.join(', ')} | 
         Ranking Type: {rankingType} | Evaluation Level: {evaluationLevel}
       </Typography>
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Player</TableCell>
-              <TableCell>Mean Rating</TableCell>
-              <TableCell>Relative Uncertainty</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rankings.slice(0, 100).map((ranking, index) => (
-              <TableRow key={index}>
-                <TableCell>{ranking.player}</TableCell>
-                <TableCell>{ranking.score}</TableCell>
-                <TableCell>{ranking.uncertainty}</TableCell>
+      {loading ? (
+        <div className="loading-container">
+          <CircularProgress color="secondary" />
+        </div>
+      ) : (
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Player</TableCell>
+                <TableCell>Mean Rating</TableCell>
+                <TableCell>Relative Uncertainty</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {rankings.slice(0, 100).map((ranking, index) => (
+                <TableRow key={index}>
+                  <TableCell>{ranking.player}</TableCell>
+                  <TableCell>{Number(ranking.rating).toFixed(2)}</TableCell>
+                  <TableCell>{Number(ranking.uncertainty).toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </Paper>
   );
 };

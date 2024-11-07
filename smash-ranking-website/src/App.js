@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Grid, Button, Typography } from '@mui/material';
+import CircularProgress from '@mui/material/CircularProgress';
 import axios from 'axios';
-import { parse, stringify } from 'query-string';
+import queryString from 'query-string';
 import QueryForm from './QueryForm';
 import TourneyList from './TourneyList';
 import RankingTable from './RankingTable';
@@ -15,10 +16,12 @@ const App = () => {
   const [evaluationLevel, setEvaluationLevel] = useState("sets");
   const [tourneySlugs, setTourneySlugs] = useState([]);
   const [rankings, setRankings] = useState([]);
-  
+  const [loadingRankings, setLoadingRankings] = useState(false);
+  const [loadingTournaments, setLoadingTournaments] = useState(false);
+
   // Load state from URL if present
   useEffect(() => {
-    const params = parse(window.location.search);
+    const params = queryString.parse(window.location.search);
     if (params.tierOptions) setTierOptions(params.tierOptions.split(','));
     if (params.startDate) setStartDate(params.startDate);
     if (params.endDate) setEndDate(params.endDate);
@@ -27,38 +30,44 @@ const App = () => {
   }, []);
 
   const fetchTourneySlugs = async () => {
+    setLoadingTournaments(true);
+    const queryParams = queryString.stringify({
+      tier_options: tierOptions.join(','),
+      start_date: startDate,
+      end_date: endDate,
+    });
+
     try {
-      const response = await axios.post(
-        "https://1234567.execute-api.us-east-1.amazonaws.com/prod/query_tournaments",
-        {
-          tier_options: tierOptions,
-          start_date: startDate,
-          end_date: endDate,
-        },
-        { headers: { "x-api-key": "smash_ranker_api_secret_key" } }
+      const response = await axios.get(
+        `http://127.0.0.1:8000/query_tournaments?${queryParams}`
       );
       setTourneySlugs(response.data.map(item => item.tourney_slug));
     } catch (error) {
       console.error("Error fetching tournaments:", error);
+    } finally {
+      setLoadingTournaments(false);
     }
   };
 
   const fetchRankings = async () => {
+    setLoadingRankings(true);
+    const queryParams = queryString.stringify({
+      ranking_to_run: rankingType,
+      tier_options: tierOptions.join(','),
+      start_date: startDate,
+      end_date: endDate,
+      evaluation_level: evaluationLevel,
+    });
+
     try {
-      const response = await axios.post(
-        "https://1234567.execute-api.us-east-1.amazonaws.com/prod/get_ranking",
-        {
-          ranking_to_run: rankingType,
-          tier_options: tierOptions,
-          start_date: startDate,
-          end_date: endDate,
-          evaluation_level: evaluationLevel,
-        },
-        { headers: { "x-api-key": "smash_ranker_api_secret_key" } }
+      const response = await axios.get(
+        `http://127.0.0.1:8000/get_ranking?${queryParams}`
       );
       setRankings(response.data);
     } catch (error) {
       console.error("Error fetching rankings:", error);
+    } finally {
+      setLoadingRankings(false);
     }
   };
 
@@ -69,7 +78,7 @@ const App = () => {
     setEndDate(newState.endDate);
     setRankingType(newState.rankingType);
     setEvaluationLevel(newState.evaluationLevel);
-    const urlParams = stringify({
+    const urlParams = queryString.stringify({
       tierOptions: newState.tierOptions.join(','),
       startDate: newState.startDate,
       endDate: newState.endDate,
@@ -92,10 +101,18 @@ const App = () => {
       </Button>
       <Grid container spacing={4} className="content-grid">
         <Grid item xs={12} md={6}>
-          <TourneyList tourneySlugs={tourneySlugs} />
+          {loadingTournaments ? (
+            <CircularProgress color="secondary" />
+          ) : (
+            <TourneyList tourneySlugs={tourneySlugs} />
+          )}
         </Grid>
         <Grid item xs={12} md={6}>
-          <RankingTable rankings={rankings} parameters={{ startDate, endDate, tierOptions, rankingType, evaluationLevel }} />
+          <RankingTable 
+            rankings={rankings} 
+            parameters={{ startDate, endDate, tierOptions, rankingType, evaluationLevel }} 
+            loading={loadingRankings}
+          />
         </Grid>
       </Grid>
     </Container>
