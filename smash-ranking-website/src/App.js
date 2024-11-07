@@ -22,24 +22,23 @@ const App = () => {
 
   // Function to fetch tournament slugs
   const fetchTourneySlugs = async () => {
-  setLoadingTournaments(true);
-  const queryParams = queryString.stringify({
-    tier_options: tierOptions.join(','),
-    start_date: startDate,
-    end_date: endDate,
-  });
+    setLoadingTournaments(true);
+    const queryParams = queryString.stringify({
+      tier_options: tierOptions.join(','),
+      start_date: startDate,
+      end_date: endDate,
+    });
 
-  try {
-    const response = await axios.get(
-      `http://127.0.0.1:8000/query_tournaments?${queryParams}`
-    );
-    // Store each full tournament object in `tourneySlugs`
-    setTourneySlugs(response.data);
-  } catch (error) {
-    console.error("Error fetching tournaments:", error);
-  } finally {
-    setLoadingTournaments(false);
-  }
+    try {
+      const response = await axios.get(
+        `http://127.0.0.1:8000/query_tournaments?${queryParams}`
+      );
+      setTourneySlugs(response.data);
+    } catch (error) {
+      console.error("Error fetching tournaments:", error);
+    } finally {
+      setLoadingTournaments(false);
+    }
   };
 
   // Function to fetch rankings
@@ -65,27 +64,44 @@ const App = () => {
     }
   };
 
-  // Load state from URL if present
+  // Load state from URL if present and fetch rankings if initialized from URL
   useEffect(() => {
     const params = queryString.parse(window.location.search);
+    let shouldFetchRankings = false;
 
-    if (params.tierOptions) setTierOptions(params.tierOptions.split(','));
-    if (params.startDate) setStartDate(params.startDate);
-    if (params.endDate) setEndDate(params.endDate);
-    if (params.rankingType) setRankingType(params.rankingType);
-    if (params.evaluationLevel) setEvaluationLevel(params.evaluationLevel);
+    if (params.tierOptions) {
+      setTierOptions(params.tierOptions.split(','));
+      shouldFetchRankings = true;
+    }
+    if (params.startDate) {
+      setStartDate(params.startDate);
+      shouldFetchRankings = true;
+    }
+    if (params.endDate) {
+      setEndDate(params.endDate);
+      shouldFetchRankings = true;
+    }
+    if (params.rankingType) {
+      setRankingType(params.rankingType);
+      shouldFetchRankings = true;
+    }
+    if (params.evaluationLevel) {
+      setEvaluationLevel(params.evaluationLevel);
+      shouldFetchRankings = true;
+    }
 
-    // Mark as initialized to trigger data fetching in the next useEffect
-    setInitializedFromUrl(true);
-  }, []);
+    setInitializedFromUrl(shouldFetchRankings);
 
-  // Trigger data fetching when state has been updated from URL
-  useEffect(() => {
-    if (initializedFromUrl) {
-      fetchTourneySlugs();
+    // Trigger fetchRankings only if there are URL parameters present
+    if (shouldFetchRankings) {
       fetchRankings();
     }
-  }, [initializedFromUrl, tierOptions, startDate, endDate, rankingType, evaluationLevel]);
+  }, []);
+
+  // Trigger fetchTourneySlugs whenever tierOptions, startDate, or endDate changes
+  useEffect(() => {
+    fetchTourneySlugs();
+  }, [tierOptions, startDate, endDate]);
 
   // Handle state updates and update URL
   const handleUpdate = (newState) => {
@@ -94,6 +110,7 @@ const App = () => {
     setEndDate(newState.endDate);
     setRankingType(newState.rankingType);
     setEvaluationLevel(newState.evaluationLevel);
+
     const urlParams = queryString.stringify({
       tierOptions: newState.tierOptions.join(','),
       startDate: newState.startDate,
@@ -102,6 +119,8 @@ const App = () => {
       evaluationLevel: newState.evaluationLevel
     });
     window.history.replaceState(null, '', `?${urlParams}`);
+
+    // Fetch updated tournament data only (not rankings)
     fetchTourneySlugs();
   };
 
