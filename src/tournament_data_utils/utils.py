@@ -2,8 +2,8 @@ from boto3.dynamodb.conditions import Key, Attr
 import json
 import boto3
 from src.utils.constants import tier_mapper, dynamo_db_table_name, s3_bucket, LOCAL_TOURNAMENT_DATA_DIR
-#from concurrent.futures import ThreadPoolExecutor, as_completed
-#from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
@@ -50,6 +50,18 @@ def query_tournaments(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C", "
     return response['Items']
 
 
+def download_single_file(s3_bucket, s3_file, local_file_path, overwrite):
+    """Helper function to download a single file from S3."""
+    if local_file_path.exists() and not overwrite:
+        return f"Skipped {s3_file}, already exists."
+
+    try:
+        s3.download_file(s3_bucket, s3_file, str(local_file_path))
+        return f"Downloaded {s3_file} to {local_file_path}"
+    except Exception as e:
+        return f"Error downloading {s3_file}: {e}"
+
+
 def download_s3_files(all_s3_files_to_download, overwrite=False):
     """
     Download files from an S3 bucket to a local directory as quickly as possible.
@@ -63,32 +75,25 @@ def download_s3_files(all_s3_files_to_download, overwrite=False):
     # Ensure local directory exists
     LOCAL_TOURNAMENT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Download each file
-    for s3_file in all_s3_files_to_download:
-        local_file_path = LOCAL_TOURNAMENT_DATA_DIR / s3_file  # create full path for local file
+    # Define maximum threads
+    num_cores = multiprocessing.cpu_count()
+    max_threads = min(4 * num_cores, len(all_s3_files_to_download))
 
-        # Check if file exists locally and if overwrite is False, skip download
-        if local_file_path.exists() and not overwrite:
-            print(f"File {local_file_path} already exists and overwrite is set to False. Skipping download.")
-            continue
+    # Use ThreadPoolExecutor to download files in parallel
+    with ThreadPoolExecutor(max_threads) as executor:
+        future_to_file = {
+            executor.submit(download_single_file, s3_bucket, s3_file, LOCAL_TOURNAMENT_DATA_DIR / s3_file,
+                            overwrite): s3_file
+            for s3_file in all_s3_files_to_download
+        }
 
-        # Check if the file exists in S3 bucket
-        try:
-            s3.head_object(Bucket=s3_bucket, Key=s3_file)
-        except s3.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == "404":
-                raise FileNotFoundError(f"The file {s3_file} does not exist in the bucket {s3_bucket}.")
-            else:
-                raise  # Re-raise the exception if it is not a 404 error
-
-        # Download the file
-        try:
-            print(f"Downloading {s3_file} to {local_file_path}...")
-            s3.download_file(s3_bucket, s3_file, str(local_file_path))
-            print(f"Downloaded {s3_file} to {local_file_path}")
-        except Exception as e:
-            print(f"Error downloading {s3_file}: {e}")
-
+        # Process completed downloads
+        for future in as_completed(future_to_file):
+            s3_file = future_to_file[future]
+            try:
+                print(future.result())
+            except Exception as e:
+                print(f"Error with file {s3_file}: {e}")
 
 def get_all_sets_from_tournament_files(all_tournament_files):
     all_sets = []
