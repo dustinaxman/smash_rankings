@@ -18,17 +18,9 @@ const App = () => {
   const [rankings, setRankings] = useState([]);
   const [loadingRankings, setLoadingRankings] = useState(false);
   const [loadingTournaments, setLoadingTournaments] = useState(false);
+  const [initializedFromUrl, setInitializedFromUrl] = useState(false);
 
-  // Load state from URL if present
-  useEffect(() => {
-    const params = queryString.parse(window.location.search);
-    if (params.tierOptions) setTierOptions(params.tierOptions.split(','));
-    if (params.startDate) setStartDate(params.startDate);
-    if (params.endDate) setEndDate(params.endDate);
-    if (params.rankingType) setRankingType(params.rankingType);
-    if (params.evaluationLevel) setEvaluationLevel(params.evaluationLevel);
-  }, []);
-
+  // Function to fetch tournament slugs
   const fetchTourneySlugs = async () => {
     setLoadingTournaments(true);
     const queryParams = queryString.stringify({
@@ -49,6 +41,7 @@ const App = () => {
     }
   };
 
+  // Function to fetch rankings
   const fetchRankings = async () => {
     setLoadingRankings(true);
     const queryParams = queryString.stringify({
@@ -71,38 +64,27 @@ const App = () => {
     }
   };
 
-  // Load state from URL if present and trigger data fetching
+  // Load state from URL if present
   useEffect(() => {
     const params = queryString.parse(window.location.search);
-    let shouldFetch = false;
 
-    if (params.tierOptions) {
-      setTierOptions(params.tierOptions.split(','));
-      shouldFetch = true;
-    }
-    if (params.startDate) {
-      setStartDate(params.startDate);
-      shouldFetch = true;
-    }
-    if (params.endDate) {
-      setEndDate(params.endDate);
-      shouldFetch = true;
-    }
-    if (params.rankingType) {
-      setRankingType(params.rankingType);
-      shouldFetch = true;
-    }
-    if (params.evaluationLevel) {
-      setEvaluationLevel(params.evaluationLevel);
-      shouldFetch = true;
-    }
+    if (params.tierOptions) setTierOptions(params.tierOptions.split(','));
+    if (params.startDate) setStartDate(params.startDate);
+    if (params.endDate) setEndDate(params.endDate);
+    if (params.rankingType) setRankingType(params.rankingType);
+    if (params.evaluationLevel) setEvaluationLevel(params.evaluationLevel);
 
-    // Trigger both fetch functions if URL parameters were found
-    if (shouldFetch) {
+    // Mark as initialized to trigger data fetching in the next useEffect
+    setInitializedFromUrl(true);
+  }, []);
+
+  // Trigger data fetching when state has been updated from URL
+  useEffect(() => {
+    if (initializedFromUrl) {
       fetchTourneySlugs();
       fetchRankings();
     }
-  }, []);
+  }, [initializedFromUrl, tierOptions, startDate, endDate, rankingType, evaluationLevel]);
 
   // Handle state updates and update URL
   const handleUpdate = (newState) => {
