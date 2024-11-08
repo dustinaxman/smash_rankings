@@ -227,7 +227,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
 
         # Use Conjugate Gradient to solve H * x = e_i
         # Since H is symmetric positive-definite, CG is appropriate
-        x_i, info = cg(H_sparse, e_i, x0=None, rtol=1e-2, maxiter=100)
+        x_i, info = cg(H_sparse, e_i, x0=None, rtol=1e-2, maxiter=10)
         # if info != 0:
         #     logger.warning(f"CG did not converge for index {i}, info={info}")
 
@@ -311,7 +311,6 @@ def run_elo(simple_game_sets):
 def run_trueskill(simple_game_sets):
     env = ts.TrueSkill()
     ts_ratings = defaultdict(lambda: env.create_rating())
-
     for matchup in simple_game_sets:
         player1, player2, score1, score2 = matchup
         total_games = score1 + score2
@@ -339,7 +338,9 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
         ranking = run_elo(simple_game_sets)
     elif ranking_to_run == "trueskill":
+        start = time()
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
+        print(f"finished process_game_sets_to_simple_format", time()-start)
         ranking = run_trueskill(simple_game_sets)
     elif ranking_to_run == "bradleyterry":
         game_sets_filtered = filter_game_sets(game_sets, threshold_sets=None, threshold_games=None)

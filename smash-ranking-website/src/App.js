@@ -20,7 +20,15 @@ const App = () => {
   const [loadingTournaments, setLoadingTournaments] = useState(false);
   const [initializedFromUrl, setInitializedFromUrl] = useState(false);
 
-  // Function to fetch tournament slugs
+  // New state to hold the last used parameters
+  const [lastUsedParameters, setLastUsedParameters] = useState({
+    startDate,
+    endDate,
+    tierOptions,
+    rankingType,
+    evaluationLevel
+  });
+
   const fetchTourneySlugs = async () => {
     setLoadingTournaments(true);
     const queryParams = queryString.stringify({
@@ -41,7 +49,6 @@ const App = () => {
     }
   };
 
-  // Function to fetch rankings
   const fetchRankings = async () => {
     setLoadingRankings(true);
     const queryParams = queryString.stringify({
@@ -64,7 +71,6 @@ const App = () => {
     }
   };
 
-  // Load state from URL if present and fetch rankings if initialized from URL
   useEffect(() => {
     const params = queryString.parse(window.location.search);
     let shouldFetchRankings = false;
@@ -92,18 +98,15 @@ const App = () => {
 
     setInitializedFromUrl(shouldFetchRankings);
 
-    // Trigger fetchRankings only if there are URL parameters present
     if (shouldFetchRankings) {
       fetchRankings();
     }
   }, []);
 
-  // Trigger fetchTourneySlugs whenever tierOptions, startDate, or endDate changes
   useEffect(() => {
     fetchTourneySlugs();
   }, [tierOptions, startDate, endDate]);
 
-  // Handle state updates and update URL
   const handleUpdate = (newState) => {
     setTierOptions(newState.tierOptions);
     setStartDate(newState.startDate);
@@ -120,8 +123,21 @@ const App = () => {
     });
     window.history.replaceState(null, '', `?${urlParams}`);
 
-    // Fetch updated tournament data only (not rankings)
     fetchTourneySlugs();
+  };
+
+  const handleComputeRanking = () => {
+    // Update lastUsedParameters immediately on button press
+    setLastUsedParameters({
+      startDate,
+      endDate,
+      tierOptions,
+      rankingType,
+      evaluationLevel
+    });
+
+    // Call fetchRankings to get the latest rankings data
+    fetchRankings();
   };
 
   return (
@@ -131,7 +147,7 @@ const App = () => {
         tierOptions={tierOptions} startDate={startDate} endDate={endDate}
         rankingType={rankingType} evaluationLevel={evaluationLevel}
         onUpdate={handleUpdate} />
-      <Button variant="contained" color="success" onClick={fetchRankings} className="compute-button">
+      <Button variant="contained" color="success" onClick={handleComputeRanking} className="compute-button">
         Compute Ranking
       </Button>
       <Grid container spacing={4} className="content-grid">
@@ -145,7 +161,7 @@ const App = () => {
         <Grid item xs={12} md={6}>
           <RankingTable 
             rankings={rankings} 
-            parameters={{ startDate, endDate, tierOptions, rankingType, evaluationLevel }} 
+            parameters={lastUsedParameters}  // Pass lastUsedParameters to display the correct parameters
             loading={loadingRankings}
           />
         </Grid>
