@@ -14,6 +14,8 @@ from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, 
 from src.smash_ranking import get_player_rating
 from boto3.dynamodb.types import TypeSerializer
 from decimal import Decimal
+from serverless_wsgi import handle_request  # WSGI adapter for Lambda
+
 
 app = Flask(__name__)
 CORS(app)
@@ -280,6 +282,9 @@ def query_tournaments_endpoint():
     # Query tournaments
     tournaments = query_tournaments(tier_options=tier_options, start_date=start_date.isoformat(), end_date=end_date.isoformat())
     return jsonify(tournaments)
+
+def lambda_handler(event, context):
+    return handle_request(app, event, context)
 
 if __name__ == '__main__':
     app.run(debug=True)

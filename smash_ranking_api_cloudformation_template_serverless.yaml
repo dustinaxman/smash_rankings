@@ -4,10 +4,6 @@ Parameters:
     Description: "Tag of the Docker image to pull and run"
     Type: String
     Default: "latest"
-  SmashRankerAPIKey:
-    Description: "Secret key for the API"
-    Type: String
-    Default: "smash_ranker_api_secret_key"
 
 Resources:
   SmashRankerLambdaExecutionRole:
@@ -52,11 +48,8 @@ Resources:
       PackageType: Image
       Code:
         ImageUri: !Sub "198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/smash-ranker:${ImageTag}"
-      MemorySize: 2048
+      MemorySize: 1024
       Timeout: 300
-      Environment:
-        Variables:
-          API_KEY: !Ref SmashRankerAPIKey
 
   ApiGatewayRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -116,13 +109,6 @@ Resources:
       RestApiId: !Ref ApiGatewayRestApi
       StageName: prod
 
-  ApiKey:
-    Type: AWS::ApiGateway::ApiKey
-    Properties:
-      Enabled: true
-      Name: "SmashRankerAPIKey"
-      Value: !Ref SmashRankerAPIKey
-
   UsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     Properties:
@@ -132,18 +118,11 @@ Resources:
         - ApiId: !Ref ApiGatewayRestApi
           Stage: !Ref ApiGatewayDeployment
       Throttle:
-        BurstLimit: 100
-        RateLimit: 50
+        BurstLimit: 5    # 5 requests per second for short bursts
+        RateLimit: 2     # Sustained rate of 2 requests per second
       Quota:
         Limit: 100000
         Period: MONTH
-
-  UsagePlanKey:
-    Type: AWS::ApiGateway::UsagePlanKey
-    Properties:
-      KeyId: !Ref ApiKey
-      KeyType: API_KEY
-      UsagePlanId: !Ref UsagePlan
 
 Outputs:
   ApiUrlGetRanking:
