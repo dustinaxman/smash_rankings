@@ -82,6 +82,14 @@ Resources:
         IntegrationHttpMethod: POST
         Type: AWS_PROXY
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SmashRankerLambdaFunction.Arn}/invocations"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+      IntegrationResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
 
   ApiGatewayTournamentsMethod:
     Type: AWS::ApiGateway::Method
@@ -94,7 +102,64 @@ Resources:
         IntegrationHttpMethod: POST
         Type: AWS_PROXY
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SmashRankerLambdaFunction.Arn}/invocations"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+      IntegrationResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
 
+  # CORS Preflight for GET Ranking
+  ApiGatewayRankingOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayRankingResource
+      RestApiId: !Ref ApiGatewayRestApi
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+            method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+
+  # CORS Preflight for Query Tournaments
+  ApiGatewayTournamentsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayTournamentsResource
+      RestApiId: !Ref ApiGatewayRestApi
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+            method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
   LambdaApiGatewayPermission:
     Type: AWS::Lambda::Permission
     Properties:
