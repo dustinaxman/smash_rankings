@@ -54,6 +54,8 @@ const QueryForm = ({ tierOptions, startDate, endDate, rankingType, evaluationLev
           >
             <MenuItem value="elo">Elo</MenuItem>
             <MenuItem value="trueskill">TrueSkill</MenuItem>
+            <MenuItem value="bradleyterry">Bradley-Terry</MenuItem>
+            <MenuItem value="glicko2">Glicko-2</MenuItem>
           </Select>
         </FormControl>
       </Grid>

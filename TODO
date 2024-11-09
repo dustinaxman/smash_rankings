@@ -1,74 +1,34 @@
 
 
-make the BT uncertainty faster
-make everything faster and lower memory
-
-add a cache to get_player_rating but with the tournaments not the sets
 
 
-
-#######################
-
-Create code for a flask api that runs the following based on values passed during the call (tier_options, start_date, end_date, ranking_to_run, and evaluation_level), if a value is not included it should be None.  Make sure the api is cors enabled like this:
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
+try running the ranking click button fast!
 
 
-In one GET call:
-
-from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating, get_all_sets_from_tournament_files
-from src.smash_ranking import get_player_rating
-from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
-
-
-all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C"), start_date='2019-07-16T00:00:00', end_date='2024-10-30T00:00:00') #fill in these params with the passed params, validating format etc
-
-ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
-
-ratings_dict = {"name": ranking_to_run, "ratings": [{"player": list(id_to_player_name[int(r["player"])]), "rating": r["rating"], "variance": r["variance"]} for r in ratings]}
-
-return ratings_dict to the call
+add sections to the website explaining each ranking
+add another form of elo??
 
 
 
-additionally, this should be allowed as a separate GET call:
+push the build api
 
-from src.tournament_data_utils.utils import query_tournaments
+put it up in a serverless cloudformation
+check if api autoscales and how much
+change website endpoint to api
+push the website up
 
-results = query_tournaments(tier_options=tier_options, start_date=start_date, end_date=start_date)
-
-
-
-This is the dockerfile that will be used to run this flask app:
-
-
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
-
-# Set the working directory in the container
-WORKDIR /app
-
-# Copy the requirements.txt file first and install dependencies
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt && pip install gunicorn
-
-# Copy the rest of the application files into the container
-COPY app.py /app/app.py
-COPY camp_finder/ /app/camp_finder/
-
-# Expose port 5000 for Flask
-EXPOSE 5000
-
-# Run the application with Gunicorn
-# 4 worker processes (-w 4) and bind to all IPs on port 5000 (-b 0.0.0.0:5000)
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "app:app"]
+test it out
 
 
 
 
-test out the api that gives the rankings
+
+
+
+
+
+
+
 
 
 
@@ -86,13 +46,7 @@ docker tag tournament_updater_image:latest 198449958201.dkr.ecr.us-east-1.amazon
 docker push 198449958201.dkr.ecr.us-east-1.amazonaws.com/tournament_updater_image:latest
 
 
-
-
-
-WEDNESDAY:
-
 test the google sheets pull manually
-
 
 
 https://chatgpt.com/share/671aeff1-56a8-8008-a0b7-6b7b771290d1
@@ -109,27 +63,5 @@ host it up somewhere to be run auto every wednesday, it needs the ability to acc
         }
     ]
 }
-
-
-
-
-
-# Make a good looking react website that makes a request to get a list of tournament names and information (Tier (P, S, or A), date, and unique_id)
-# In one tab, show all of these tournaments and their information (just tournament name, date, and tier) in a nice table where all rows are initially sage green
-# At the top, give a field where the user can select a start and end date.  If not selected, the start date should default to Nov 1 2018 and the end date should default to today.
-# They should also be given a field to select one or more Tiers. Finally they will be given a button "Compute rankings" next to a field selector "Type of ranking" with 3 values "Elo", "Bradley-Terry", and "TrueSkill". 
-# As they change their selections in all of the fields except "Type of ranking", different rows in the table of tournaments should turn from green to pale red dynamically (make it pretty).  
-# Tournaments whose date is in the date range and whose tier is in the set of tiers that the user has selected will be green, the rest will be red.  
-# When the user presses the "Compute rankings" button, take the unique_ids of all of the tournaments and make a request to this api:
-
-
-# the response will look like this:
-# [{"player": "Mkleo", "score": 2000, "score_variance": 50}, {"player": "Tweek", "score": 1800, "score_variance": 150}, {"player": "Shuton", "score": 1600, "score_variance": 50}]
-
-
-# In a new tab, display this sorted (by score, with largest at the top) list of rankings in a pretty table. Show each player, their score, and their score variance for the top 100 players.
-# At the top of this tab, show the parameters for this ranking (the date range and the selected tiers).
-
-# Output the file name and exact contents of each file in the react app.
 
 

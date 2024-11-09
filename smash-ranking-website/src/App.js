@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+iimport React, { useState, useEffect, useRef } from 'react';
 import { Container, Grid, Button, Typography } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
 import axios from 'axios';
@@ -9,6 +9,7 @@ import RankingTable from './RankingTable';
 import './App.css';
 
 const App = () => {
+  const currentRequestId = useRef(0);
   const [tierOptions, setTierOptions] = useState(["P", "S+", "S", "A+", "A"]);
   const [startDate, setStartDate] = useState("2018-11-01");
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -50,7 +51,10 @@ const App = () => {
   };
 
   const fetchRankings = async () => {
+    const requestId = currentRequestId.current + 1;
+    currentRequestId.current = requestId;
     setLoadingRankings(true);
+
     const queryParams = queryString.stringify({
       ranking_to_run: rankingType,
       tier_options: tierOptions.join(','),
@@ -63,11 +67,15 @@ const App = () => {
       const response = await axios.get(
         `http://127.0.0.1:8000/get_ranking?${queryParams}`
       );
-      setRankings(response.data);
+      if (requestId === currentRequestId.current) {
+        setRankings(response.data);
+      }
     } catch (error) {
       console.error("Error fetching rankings:", error);
     } finally {
-      setLoadingRankings(false);
+      if (requestId === currentRequestId.current) {
+        setLoadingRankings(false);
+      }
     }
   };
 

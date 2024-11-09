@@ -81,7 +81,7 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
 
 #TODO: # #Glicko/Glicko-2???
 #TODO:  #Bayesian Elo
-def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
+def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     """
     Computes Bradley-Terry ratings from game data.
 
@@ -188,14 +188,16 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
             tol=tol,
         )
     except RuntimeError as e:
-        # If MM algorithm did not converge, log an error and raise exception
         logger.error("MM algorithm did not converge: {}".format(e))
         raise
 
     # Normalize ratings (optional)
     bt_ratings -= np.mean(bt_ratings)  # Center the ratings
 
-    # Compute the Hessian matrix efficiently
+    # Identify top 100 players based on ratings
+    top_100_indices = np.argsort(bt_ratings)[-100:]  # Indices of the top 100 players
+
+    # Compute the Hessian matrix efficiently for the top 100 players only
     i_array = np.array([i for (i, j) in comparisons_numeric])
     j_array = np.array([j for (i, j) in comparisons_numeric])
     count_array = np.array(counts)
@@ -205,46 +207,93 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-5, alpha=0.1):
     p = exp_delta / (1 + exp_delta)
     w = count_array * p * (1 - p)
 
-    # Build the Hessian matrix as a sparse matrix
-    start = time()
     data = np.concatenate([w, w, -w, -w])
     row = np.concatenate([i_array, j_array, i_array, j_array])
     col = np.concatenate([i_array, j_array, j_array, i_array])
 
     H_sparse = coo_matrix((data, (row, col)), shape=(n_players, n_players))
-
-    # Add regularization term (alpha) to the diagonal
     H_sparse = H_sparse.tocsr()
     H_sparse.setdiag(H_sparse.diagonal() + alpha)
 
-    # Compute the diagonal of the inverse Hessian using iterative methods
-    # We'll use the Conjugate Gradient method to solve Hx = e_i for each i
-
-    variances = np.zeros(n_players)
-    for i in range(n_players):
+    # Compute variances only for the top 100 players
+    variances = np.full(n_players, None)  # Initialize with None for all
+    for i in top_100_indices:
         e_i = np.zeros(n_players)
         e_i[i] = 1.0
 
-        # Use Conjugate Gradient to solve H * x = e_i
-        # Since H is symmetric positive-definite, CG is appropriate
         x_i, info = cg(H_sparse, e_i, x0=None, rtol=1e-2, maxiter=10)
-        # if info != 0:
-        #     logger.warning(f"CG did not converge for index {i}, info={info}")
+        variances[i] = x_i[i]  # Diagonal element for the inverse Hessian
 
-        variances[i] = x_i[i]  # Diagonal element of the inverse Hessian
-
-    standard_errors = np.sqrt(variances)
-
-    # Compute confidence intervals
+    standard_errors = np.sqrt([v if v is not None else 0 for v in variances])
     z = norm.ppf(1 - 0.025)  # Approximately 1.96 for 95% confidence
-    print(time() - start)
     uncertainty = z * standard_errors
 
-    # Build the ratings list
+    # Build the ratings list with None for players not in the top 100
     ratings = []
-    for p, r, u in zip(players, bt_ratings, uncertainty):
-        ratings.append({"player": p, "rating": r, "uncertainty": u})
+    for idx, (p, r, u) in enumerate(zip(players, bt_ratings, uncertainty)):
+        ratings.append({
+            "player": p,
+            "rating": r,
+            "uncertainty": u if idx in top_100_indices else None
+        })
 
+    return ratings
+
+
+def run_simple_elo(simple_game_sets):
+    elo_ratings = defaultdict(lambda: 1200)  # Default initial rating of 1200
+    games_played = defaultdict(int)  # Track total games played per player
+    simple_game_sets_len = len(simple_game_sets)
+    logging.info(simple_game_sets_len)
+    #looped_unrolled_matchups = [matchup for s in [simple_game_sets for epoch in range(50)] for matchup in s]
+    #simple_game_sets_len*100
+    # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
+    for matchup in simple_game_sets:
+        player1, player2, score1, score2 = matchup
+        total_games = score1 + score2
+        if total_games == 0:
+            continue
+        games_played[player1] += total_games
+        games_played[player2] += total_games
+
+        # # Determine if players are provisional based on games played
+        # is_provisional1 = games_played[player1] < 30
+        # is_provisional2 = games_played[player2] < 30
+
+        # # Skip Elo adjustment for established players facing provisional opponents
+        # if not is_provisional1 and is_provisional2:
+        #     continue
+        # if not is_provisional2 and is_provisional1:
+        #     continue
+
+        # Set K-factor based on experience and rating
+        def get_k_factor(player):
+            if games_played[player] < 30:  # Provisional player
+                return 20
+            elif elo_ratings[player] >= 2400:  # Top player
+                return 20
+            else:  # Established player
+                return 20
+
+        k_factor1 = get_k_factor(player1)
+        k_factor2 = get_k_factor(player2)
+
+        # Calculate expected scores for both players
+        expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - elo_ratings[player1]) / 400))
+        expected_score2 = 1 - expected_score1
+
+        # Calculate actual scores as proportions
+        actual_score1 = score1 / total_games
+        actual_score2 = score2 / total_games
+
+        # Update ratings based on K-factors and actual vs expected scores
+        elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
+        elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
+        # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
+        #     break
+
+    # Prepare results in desired format
+    ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings
 
 
@@ -304,7 +353,7 @@ def run_elo(simple_game_sets):
         #     break
 
     # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating, "uncertainty": 500/math.sqrt(games_played[player])} for player, rating in elo_ratings.items()]
+    ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings
 
 
@@ -350,6 +399,10 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
                                                                                                evaluation_level)
         ranking = run_glicko2(simple_game_sets)
+    elif ranking_to_run == "simpleelo":
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
+                                                                                               evaluation_level)
+        ranking = run_simple_elo(simple_game_sets)
     elif ranking_to_run == "bayesianelo":
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
                                                                                                evaluation_level)

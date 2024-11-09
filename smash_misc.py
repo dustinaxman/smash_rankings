@@ -1,4 +1,182 @@
 
+
+
+
+ts = query_tournaments(tier_options=("P", "S+", "S", "A+", "A"), start_date='2018-06-16T00:00:00', end_date='2026-11-07T00:00:00')
+all_s3_files_to_download = ["{}-{}.json".format(result["tourney_slug"], result["event_slug"]) for result in ts]
+download_s3_files(all_s3_files_to_download, overwrite=False)
+all_uncertainty_and_actual_diff_dict = {}
+tournament_exp_range = 1
+print(len(all_s3_files_to_download))
+ranking_to_run = "trueskill"
+all_uncertainty_and_actual_diff = []
+for batch_size in range(2, 10):
+    for i in range(0, len(all_s3_files_to_download)-batch_size, 3):
+        print(f"{i}/{len(all_s3_files_to_download)-batch_size}")
+        first_tournaments = all_s3_files_to_download[i:i + batch_size - tournament_exp_range]
+        all_tournaments = all_s3_files_to_download[i:i + batch_size]
+        first_sets = get_all_sets_from_tournament_files(first_tournaments)
+        all_sets = get_all_sets_from_tournament_files(all_tournaments)
+        ratings_1, id_to_player_name_1, player_to_id_1 = get_player_rating(first_sets, ranking_to_run=ranking_to_run,
+                                                                     evaluation_level="sets")
+        ratings_2, id_to_player_name_2, player_to_id_2 = get_player_rating(all_sets, ranking_to_run=ranking_to_run,
+                                                                     evaluation_level="sets")
+        ratings_1 = sorted(ratings_1, key=lambda a: a["rating"], reverse=True)[:30]
+        ratings_2 = sorted(ratings_2, key=lambda a: a["rating"], reverse=True)[:75]
+        ratings_2_dict = {r["player"]: r["rating"] for r in ratings_2}
+        for r in ratings_1:
+            player_id = r["player"]
+            initial_rating = r["rating"]
+            initial_uncertainty = r["uncertainty"]
+            if player_id in ratings_2_dict:
+                final_rating = ratings_2_dict[player_id]
+                actual_diff = final_rating - initial_rating
+                all_uncertainty_and_actual_diff.append([initial_uncertainty, abs(actual_diff)])
+all_uncertainty_and_actual_diff_dict[ranking_to_run] = all_uncertainty_and_actual_diff
+
+
+
+import math
+
+# Define the number of bins
+num_bins = 40  # Change this to the desired number of bins
+ranking_to_run = "trueskill"
+# Calculate the range of point[0] values
+min_value = min(point[0] for point in all_uncertainty_and_actual_diff_dict[ranking_to_run])
+max_value = max(point[0] for point in all_uncertainty_and_actual_diff_dict[ranking_to_run])
+bin_width = (max_value - min_value) / num_bins
+# Calculate the 99th percentile for point[1] values in each bin
+for i in range(num_bins):
+    lower_bound = min_value + i * bin_width
+    upper_bound = lower_bound + bin_width
+    filtered_points = [point for point in all_uncertainty_and_actual_diff_dict[ranking_to_run] if lower_bound < point[0] <= upper_bound]
+    if filtered_points:
+        # Sort and get the 99th percentile value of point[1] in this bin
+        percentile_value = sorted([point[1] for point in filtered_points])[int(0.9 * len(filtered_points))]
+        x = (upper_bound + upper_bound)/2
+        #x_if_sqrt = 2000 / math.sqrt((2000 / x))
+        x_ratio = percentile_value/x
+        #x_if_sqrt_ratio = percentile_value/x_if_sqrt
+        print(
+            f"{x},{x_ratio}, Bin {i + 1} ({lower_bound:.2f} to {upper_bound:.2f}) {len(filtered_points)}: 99th percentile of point[1] is {percentile_value}")
+    else:
+        print(f"Bin {i + 1} ({lower_bound:.2f} to {upper_bound:.2f}): No data")
+
+
+
+
+
+for i in range(2, 11):
+    filtered_points = [point for point in all_uncertainty_and_actual_diff if (i < point[0]) and (point[0] < i+1)]
+    print(i, sorted([point[1] for point in filtered_points])[int(0.99*len(filtered_points))])
+
+
+# Count how many of these points also have the second value less than the first value
+matching_points = [point for point in filtered_points if point[1] < point[0]]
+
+# Calculate the proportion
+proportion = len(matching_points) / len(filtered_points) if filtered_points else 0
+
+print("Proportion:", proportion)
+
+import matplotlib.pyplot as plt
+top_points = sorted(all_uncertainty_and_actual_diff, key = lambda a: a[1])[int(-0.05*len(all_uncertainty_and_actual_diff)):]
+x_values = [point[0] for point in top_points]
+y_values = [point[1] for point in top_points]
+
+
+plt.figure(figsize=(8, 6))
+plt.hist2d(x_values, y_values, bins=50, cmap='Blues')
+plt.colorbar(label='Count')
+plt.xlabel('Initial Uncertainty')
+plt.ylabel('Absolute Rating Change')
+plt.title('2D Histogram of Uncertainty vs. Rating Change')
+plt.xlim(2, 10)
+plt.ylim(0, 5)
+plt.show(block=True)
+
+#Create the scatter plot
+plt.figure(figsize=(8, 6))
+plt.scatter(x_values, y_values, s=10, alpha=0.2)
+plt.xlabel('X values')
+plt.ylabel('Y values')
+plt.title('Scatter Plot of Points')
+plt.grid(True)
+#plt.xlim(50, 100)
+plt.show(block=True)
+
+plt.figure(figsize=(8, 6))
+plt.hexbin(x_values, y_values, gridsize=50, cmap='Blues')
+plt.colorbar(label='Count')
+plt.xlabel('Initial Uncertainty')
+plt.ylabel('Absolute Rating Change')
+plt.title('Hexbin Plot of Uncertainty vs. Rating Change')
+plt.grid(True)
+plt.show()
+
+
+plt.figure(figsize=(8, 6))
+plt.hist(y_values, bins='auto', range=(0, .2), color='skyblue', edgecolor='black', alpha=0.7)
+plt.xlabel('Y Values')
+plt.ylabel('Frequency')
+plt.title('Distribution of Y Values (0-400)')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show(block=True)
+
+
+
+
+
+
+
+
+
+Make a very good looking react website that collects information from the user at the top in a series of fields (Tier (drop down of selectable "P", "S+", "S", "A+", "A", "B+", "B", "C" where multiple can be selected, start_date (default to Nov 1 2018 if not selected), end_date (default to today if not selected), ranking_to_run (drop down of either elo, or trueskill), and evaluation_level (a choice of either "sets" or "games"))
+
+Whenever Tier, start_date, or end_date are changed, a query like this will be sent by the website:
+
+curl -X POST "https://1234567.execute-api.us-east-1.amazonaws.com/prod/query_tournaments" \
+-H "x-api-key: smash_ranker_api_secret_key" \
+-H "Content-Type: application/json" \
+-d '{
+    'tier_options': ("P", "S+", "S", "A+", "A")
+    'start_date': '2018-07-16T00:00:00'
+    'end_date':'2024-11-06T00:00:00'
+    }'
+
+This will return a list of dicts where each dict has a field "tourney_slug".  We want to display the tourney_slug for each item in a nice, clean, pretty vertical list.  Picture the fields along the top and then the section below the fields split into left half and right half.  The left half will have this list of tourney slugs, the right will have a ranking of players (we'll talk about this later).
+
+Also just under the fields (and above the tourney slug list/ranking left right split section) is a pretty looking green button "Compute Ranking".  When pressed, a request like this will be sent:
+
+curl -X POST "https://1234567.execute-api.us-east-1.amazonaws.com/prod/get_ranking" \
+-H "x-api-key: smash_ranker_api_secret_key" \
+-H "Content-Type: application/json" \
+-d '{
+    'ranking_to_run': 'elo'
+    'tier_options': ("P", "S+", "S", "A+", "A")
+    'start_date': '2018-07-16T00:00:00'
+    'end_date':'2024-11-06T00:00:00'
+    'evaluation_level': 'sets'
+    }'
+
+
+the response will look like this:
+[{"player": "Mkleo", "score": 2000, "uncertainty": 50}, {"player": "Tweek", "score": 1800, "uncertainty": 150}, {"player": "Shuton", "score": 1600, "uncertainty": 50}]
+
+
+On the right side of the split lower half, display this list of rankings in a pretty table. Show each player, their score, and their score variance for the top 100 players.  The column names should be "Player", "Mean Rating", and "Relative Uncertainty" respectively.
+
+Above this table, show the parameters for this ranking (the date range, selected tiers, ranking type, and evaluation level).
+
+Implement stateful URL encoding so that when a user presses the button, the form data and page state are encoded as URL parameters. This way, the URL becomes shareable, and anyone visiting it will see the same pre-filled form and state.
+
+Output the file name and exact contents of each file in the react app.  Ask any questions needed before starting.
+
+
+
+
+
+
 d = {}
 for i in range(100000):
     if i%100 == 0:
