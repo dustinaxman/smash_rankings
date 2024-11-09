@@ -109,6 +109,39 @@ Resources:
       RestApiId: !Ref ApiGatewayRestApi
       StageName: prod
 
+  # AWS WAF Web ACL with rate-based rule for per-IP throttling
+  WAFWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: "SmashRankerWebACL"
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      Rules:
+        - Name: "RateLimitRule"
+          Priority: 1
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 120   # 2 requests per second translates to 120 per minute
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: "RateLimitRule"
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: "SmashRankerWebACL"
+
+  # Web ACL association with API Gateway stage
+  WAFWebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/prod"
+      WebACLArn: !Ref WAFWebACL
+
   UsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     Properties:
@@ -118,8 +151,8 @@ Resources:
         - ApiId: !Ref ApiGatewayRestApi
           Stage: !Ref ApiGatewayDeployment
       Throttle:
-        BurstLimit: 5    # 5 requests per second for short bursts
-        RateLimit: 2     # Sustained rate of 2 requests per second
+        BurstLimit: 1000    # 5 requests per second for short bursts
+        RateLimit: 500     # Sustained rate of 2 requests per second
       Quota:
         Limit: 100000
         Period: MONTH
