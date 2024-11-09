@@ -13,7 +13,7 @@ from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, 
 from src.smash_ranking import get_player_rating
 from decimal import Decimal
 from serverless_wsgi import handle_request  # WSGI adapter for Lambda
-
+import uuid
 
 app = Flask(__name__)
 CORS(app)
@@ -255,6 +255,18 @@ def query_tournaments_endpoint():
     # Query tournaments
     tournaments = query_tournaments(tier_options=tier_options, start_date=start_date.isoformat(), end_date=end_date.isoformat())
     return jsonify(tournaments)
+
+@app.before_request
+def before_request():
+    request.id = str(uuid.uuid4())
+    g.start_time = time()
+
+@app.after_request
+def after_request(response):
+    if hasattr(g, 'start_time'):
+        elapsed = time() - g.start_time
+        logging.info(f"Request {request.id} completed in {elapsed:.2f}s")
+    return response
 
 def lambda_handler(event, context):
     return handle_request(app, event, context)
