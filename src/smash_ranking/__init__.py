@@ -269,9 +269,9 @@ def run_simple_elo(simple_game_sets):
         # Set K-factor based on experience and rating
         def get_k_factor(player):
             if games_played[player] < 30:  # Provisional player
-                return 20
+                return 40
             elif elo_ratings[player] >= 2400:  # Top player
-                return 20
+                return 10
             else:  # Established player
                 return 20
 
