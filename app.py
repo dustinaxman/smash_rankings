@@ -35,33 +35,6 @@ TIER_OPTIONS = ("P", "S+", "S", "A+", "A")
 
 dynamodb = boto3.resource("dynamodb")
 
-def create_table(table_name):
-    """Create DynamoDB table with correct schema if it doesn't exist"""
-    try:
-        table = dynamodb.create_table(
-            TableName=table_name,
-            KeySchema=[
-                {'AttributeName': 'cache_key', 'KeyType': 'HASH'}
-            ],
-            AttributeDefinitions=[
-                {'AttributeName': 'cache_key', 'AttributeType': 'S'}
-            ],
-            ProvisionedThroughput={
-                'ReadCapacityUnits': 20,
-                'WriteCapacityUnits': 20
-            }
-        )
-        table.wait_until_exists()
-        logging.info(f"DynamoDB table '{table_name}' created successfully")
-        return table
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'ResourceInUseException':
-            logging.info(f"Table {table_name} already exists")
-            return dynamodb.Table(table_name)
-        raise
-
-
-create_table("SmashRankingCache")
 table = dynamodb.Table("SmashRankingCache")
 
 

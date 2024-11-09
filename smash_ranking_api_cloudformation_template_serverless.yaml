@@ -124,7 +124,7 @@ Resources:
             Block: {}
           Statement:
             RateBasedStatement:
-              Limit: 120   # 2 requests per second translates to 120 per minute
+              Limit: 600
               AggregateKeyType: IP
           VisibilityConfig:
             SampledRequestsEnabled: true
@@ -151,8 +151,8 @@ Resources:
         - ApiId: !Ref ApiGatewayRestApi
           Stage: !Ref ApiGatewayDeployment
       Throttle:
-        BurstLimit: 1000    # 5 requests per second for short bursts
-        RateLimit: 500     # Sustained rate of 2 requests per second
+        BurstLimit: 1000
+        RateLimit: 500
       Quota:
         Limit: 100000
         Period: MONTH
