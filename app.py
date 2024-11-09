@@ -6,13 +6,11 @@ import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from botocore.exceptions import ClientError
-from boto3.dynamodb.conditions import Key
 from datetime import datetime
 import logging
 from src.utils.constants import LOG_FOLDER_PATH, THRESHOLD_PLAYER_NUM_TO_RETURN, MAX_CACHE_SIZE
 from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, query_tournaments, download_s3_files
 from src.smash_ranking import get_player_rating
-from boto3.dynamodb.types import TypeSerializer
 from decimal import Decimal
 from serverless_wsgi import handle_request  # WSGI adapter for Lambda
 
@@ -43,7 +41,7 @@ def create_table(table_name):
         table = dynamodb.create_table(
             TableName=table_name,
             KeySchema=[
-                {'AttributeName': 'cache_key', 'KeyType': 'HASH'}  # Removed composite key
+                {'AttributeName': 'cache_key', 'KeyType': 'HASH'}
             ],
             AttributeDefinitions=[
                 {'AttributeName': 'cache_key', 'AttributeType': 'S'}
@@ -65,31 +63,6 @@ def create_table(table_name):
 
 create_table("SmashRankingCache")
 table = dynamodb.Table("SmashRankingCache")
-
-
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return str(obj)
-        return super(DecimalEncoder, self).default(obj)
-
-
-class DecimalSerializer:
-    def __init__(self):
-        self.serializer = TypeSerializer()
-
-    def _convert_floats(self, obj):
-        if isinstance(obj, float):
-            return Decimal(str(obj))
-        elif isinstance(obj, dict):
-            return {k: self._convert_floats(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._convert_floats(i) for i in obj]
-        return obj
-
-    def serialize(self, value):
-        decimal_value = self._convert_floats(value)
-        return self.serializer.serialize(decimal_value)
 
 
 def md5_encode_key(data):
@@ -286,5 +259,5 @@ def query_tournaments_endpoint():
 def lambda_handler(event, context):
     return handle_request(app, event, context)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# if __name__ == '__main__':
+#     app.run(debug=True)

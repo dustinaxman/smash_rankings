@@ -45,13 +45,11 @@ docker tag smash-ranker:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/smas
 
 
 
-aws cloudformation create-stack --stack-name smash-ranker-api --template-body file://smash_ranking_api_cloudformation_template_serverless.yaml --parameters ParameterKey=ImageTag,ParameterValue=latest ParameterKey=SmashRankerAPIKey,ParameterValue=smash_ranker_api_secret_key --capabilities CAPABILITY_IAM
+aws cloudformation create-stack --stack-name smash-ranker-api --template-body file://smash_ranking_api_cloudformation_template_serverless.yaml --parameters ParameterKey=ImageTag,ParameterValue=latest --capabilities CAPABILITY_IAM
 
 
-REGION=us-east-1
 
-
-curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/get_ranking" \
+curl -X POST "https://{API_ID}.execute-api.us-east-1.amazonaws.com/prod/get_ranking" \
 -H "x-api-key: smash_ranker_api_secret_key" \
 -H "Content-Type: application/json" \
 -d '{
@@ -64,7 +62,7 @@ curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/get_ranki
 
 
 
-curl -X POST "https://{API_ID}.execute-api.{REGION}.amazonaws.com/prod/query_tournaments" \
+curl -X POST "https://{API_ID}.execute-api.us-east-1.amazonaws.com/prod/query_tournaments" \
 -H "x-api-key: smash_ranker_api_secret_key" \
 -H "Content-Type: application/json" \
 -d '{
