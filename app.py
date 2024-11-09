@@ -256,6 +256,13 @@ def query_tournaments_endpoint():
     tournaments = query_tournaments(tier_options=tier_options, start_date=start_date.isoformat(), end_date=end_date.isoformat())
     return jsonify(tournaments)
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
 @app.before_request
 def before_request():
     request.id = str(uuid.uuid4())
