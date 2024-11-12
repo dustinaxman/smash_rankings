@@ -1,7 +1,9 @@
 from pathlib import Path
+import os
+import tempfile
 
-LOCAL_TOURNAMENT_DATA_DIR = Path.home()/"all_smash_tournament_data"
-LOG_FOLDER_PATH = str(Path.home()/"smash_tournament_logs")
+LOCAL_TOURNAMENT_DATA_DIR = Path(os.path.join(tempfile.gettempdir(), "all_smash_tournament_data"))
+LOG_FOLDER_PATH = os.path.join(tempfile.gettempdir(), "smash_tournament_logs")
 THRESHOLD_PLAYER_NUM_TO_RETURN = 100
 MAX_CACHE_SIZE = 10000
 s3_bucket = 'smash-ranking-tournament-data'

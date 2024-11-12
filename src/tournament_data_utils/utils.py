@@ -18,16 +18,19 @@ s3 = boto3.client('s3', config=config)
 dynamodb = boto3.resource('dynamodb')
 ddb_table = dynamodb.Table(dynamo_db_table_name)
 
-os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
-log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
+# os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
+# log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+# log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    handlers=[
-                        logging.StreamHandler(),                    # Console handler
-                        logging.FileHandler(log_file_path, mode='a')  # File handler with append mode
-                    ])
+# logging.basicConfig(level=logging.INFO,
+#                     format='%(asctime)s - %(levelname)s - %(message)s',
+#                     handlers=[
+#                         logging.StreamHandler(),                    # Console handler
+#                         logging.FileHandler(log_file_path, mode='a')  # File handler with append mode
+#                     ])
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def query_tournaments(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C", "D"), start_date=None, end_date=None):
     """
@@ -42,7 +45,7 @@ def query_tournaments(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C", "
     Returns:
         list: List of tournament items matching the criteria.
     """
-    logging.info(f"Calling query_tournaments with: {tier_options}, {start_date}, {end_date}")
+    logger.info(f"Calling query_tournaments with: {tier_options}, {start_date}, {end_date}")
     if tier_options is None:
         tier_options = ("P", "S+", "S", "A+", "A", "B+", "B", "C", "D")
     # Build the filter expression
@@ -111,9 +114,9 @@ def download_s3_files(all_s3_files_to_download, overwrite=False):
         for future in as_completed(future_to_file):
             s3_file = future_to_file[future]
             try:
-                logging.info(future.result())
+                logger.info(future.result())
             except Exception as e:
-                logging.info(f"Error with file {s3_file}: {e}")
+                logger.info(f"Error with file {s3_file}: {e}")
 
 def get_all_sets_from_tournament_files(all_tournament_files):
     all_sets = []

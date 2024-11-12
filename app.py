@@ -13,27 +13,31 @@ from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, 
 from src.smash_ranking import get_player_rating
 from decimal import Decimal
 from serverless_wsgi import handle_request  # WSGI adapter for Lambda
-import uuid
+import sys
 
 app = Flask(__name__)
 CORS(app)
 
-os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
-log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
+app.logger.setLevel(logging.INFO)
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    handlers=[
-                        logging.StreamHandler(),                    # Console handler
-                        logging.FileHandler(log_file_path, mode='a')  # File handler with append mode
-                    ])
+# os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
+# log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+# log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
+
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     handlers=[logging.StreamHandler(sys.stdout)]  # Ensure logs are output to stdout
+# )
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 DEFAULT_START_DATE = '2018-07-16T00:00:00'
 DEFAULT_END_DATE = '2024-11-06T00:00:00'
 TIER_OPTIONS = ("P", "S+", "S", "A+", "A")
 
-dynamodb = boto3.resource("dynamodb")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
 table = dynamodb.Table("SmashRankingCache")
 
@@ -101,30 +105,32 @@ def store_in_cache(param_list, result):
 
         # Clean any empty values that might cause DynamoDB validation errors
         cleaned_item = clean_empty_values(item)
-
+        logger.info("Sending data to cache")
         # Store in DynamoDB
         table.put_item(Item=cleaned_item)
-
+        logger.info("FINISHED sending data to cache")
         # Clean up old items if necessary
         response = table.scan(
             ProjectionExpression="cache_key,last_accessed",
             Select='SPECIFIC_ATTRIBUTES'
         )
-
+        logger.info("FINISHED scanning items to clean")
         items = response['Items']
         if len(items) > MAX_CACHE_SIZE:
+            logger.info(f"MORE ITEMS THAN CACHE SIZE ALLOWED {MAX_CACHE_SIZE}")
             # Sort by last_accessed timestamp
             items.sort(key=lambda x: x['last_accessed'])
             # Delete oldest items
             items_to_delete = items[:len(items) - MAX_CACHE_SIZE]
-
+            logger.info(f"Starting item delete from cache")
             with table.batch_writer() as batch:
                 for item in items_to_delete:
                     batch.delete_item(Key={'cache_key': item['cache_key']})
+            logger.info(f"Deleted all oldest items")
 
     except ClientError as e:
-        logging.error(f"Error storing item in cache: {str(e)}")
-        logging.error(f"Attempted to store item: {cleaned_item}")
+        logger.error(f"Error storing item in cache: {str(e)}")
+        logger.error(f"Attempted to store item: {cleaned_item}")
         raise
 
 
@@ -151,38 +157,45 @@ def get_from_cache(param_list):
         return None
 
     except ClientError as e:
-        logging.error(f"Error retrieving item from cache: {str(e)}")
+        logger.error(f"Error retrieving item from cache: {str(e)}")
         raise
 
 
 def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, evaluation_level):
+    logger.info(f"Running query_tournaments {tier_options}, {start_date}, {end_date}")
     queried_tournaments = query_tournaments(
         tier_options=tier_options,
         start_date=start_date,
         end_date=end_date
     )
     params = {"tier_options": tier_options, "ranking_to_run": ranking_to_run, "evaluation_level": evaluation_level, "tournament_list": ["{}-{}".format(result["tourney_slug"], result["event_slug"]) for result in queried_tournaments]}
-    logging.info(f"Get rankings with: {params}")
+    logger.info(f"Get rankings with: {params}")
     ratings_player_name_added = get_from_cache(params)
     if ratings_player_name_added is None:
+        logger.info(f"Cache returned None, computing rankings")
         all_s3_files_to_download = ["{}-{}.json".format(result["tourney_slug"], result["event_slug"]) for result in queried_tournaments]
+        logger.info(f"Starting file download")
         download_s3_files(all_s3_files_to_download, overwrite=False)
+        logger.info(f"Completed file download")
         all_sets = get_all_sets_from_tournament_files(all_s3_files_to_download)
+        logger.info(f"Completed getting all sets from tournaments")
         ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run,
                                                                      evaluation_level="sets")
+        logger.info(f"Completed getting all player ratings")
         result = {"ratings": sorted(ratings, key=lambda a: a["rating"], reverse=True)[:THRESHOLD_PLAYER_NUM_TO_RETURN], "id_to_player_name": id_to_player_name, "player_to_id": player_to_id}
         ratings_player_name_added = [
             {"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in
             result["ratings"]]
+        logger.info(f"Adding ratings to rating CACHE")
         store_in_cache(params, ratings_player_name_added)
     return ratings_player_name_added
 
 @app.route('/get_ranking', methods=['GET'])
 def get_ranking():
     # Extract parameters from the request
-    logging.info("get_ranking called with:")
-    logging.info("request.args:")
-    logging.info(request.args)
+    logger.info("get_ranking called with:")
+    logger.info("request.args:")
+    logger.info(request.args)
     ranking_to_run = request.args.get('ranking_to_run')
     if ranking_to_run not in {"trueskill", "elo", "glicko2", "bradleyterry"}:
         return jsonify({"error": "Invalid ranking_to_run value"}), 400
@@ -210,9 +223,9 @@ def get_ranking():
 
 @app.route('/query_tournaments', methods=['GET'])
 def query_tournaments_endpoint():
-    logging.info("query_tournaments_endpoint called with:")
-    logging.info("request.args:")
-    logging.info(request.args)
+    logger.info("query_tournaments_endpoint called with:")
+    logger.info("request.args:")
+    logger.info(request.args)
     tier_options = request.args.get('tier_options', default=TIER_OPTIONS)
     tier_options = tuple(tier_options.split(',')) if isinstance(tier_options, str) else tier_options
 
@@ -236,19 +249,15 @@ def health_check():
         'timestamp': datetime.utcnow().isoformat()
     })
 
-@app.before_request
-def before_request():
-    request.id = str(uuid.uuid4())
-    g.start_time = time()
-
-@app.after_request
-def after_request(response):
-    if hasattr(g, 'start_time'):
-        elapsed = time() - g.start_time
-        logging.info(f"Request {request.id} completed in {elapsed:.2f}s")
-    return response
 
 def lambda_handler(event, context):
+    # Set default values for required fields in the event to avoid KeyError
+    event.setdefault("headers", {})
+    event.setdefault("multiValueHeaders", {})
+    event.setdefault("httpMethod", "GET")  # Default to GET if not specified
+    event.setdefault("path", "/")  # Default to root path if not specified
+
+    # Handle the request using serverless_wsgi
     return handle_request(app, event, context)
 
 # if __name__ == '__main__':

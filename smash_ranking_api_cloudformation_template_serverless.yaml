@@ -32,6 +32,8 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -47,8 +49,8 @@ Resources:
       Role: !GetAtt SmashRankerLambdaExecutionRole.Arn
       PackageType: Image
       Code:
-        ImageUri: !Sub "198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/smash-ranker:${ImageTag}"
-      MemorySize: 1024
+        ImageUri: !Sub "198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/smash-ranker-image:${ImageTag}"
+      MemorySize: 4096
       Timeout: 300
 
   ApiGatewayRestApi:
@@ -70,7 +72,6 @@ Resources:
       RestApiId: !Ref ApiGatewayRestApi
       ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
       PathPart: "query_tournaments"
-
   ApiGatewayRankingMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -86,11 +87,6 @@ Resources:
         - StatusCode: "200"
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: "'*'"
-      IntegrationResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-
   ApiGatewayTournamentsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -106,11 +102,6 @@ Resources:
         - StatusCode: "200"
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: "'*'"
-      IntegrationResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: "'*'"
-
   # CORS Preflight for GET Ranking
   ApiGatewayRankingOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -135,7 +126,6 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
-
   # CORS Preflight for Query Tournaments
   ApiGatewayTournamentsOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -170,6 +160,9 @@ Resources:
 
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayRankingMethod
+      - ApiGatewayTournamentsMethod
     Properties:
       RestApiId: !Ref ApiGatewayRestApi
       StageName: prod
@@ -202,25 +195,34 @@ Resources:
 
   # Web ACL association with API Gateway stage
   WAFWebACLAssociation:
-    Type: AWS::WAFv2::WebACLAssociation
-    Properties:
-      ResourceArn: !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/prod"
-      WebACLArn: !Ref WAFWebACL
+      Type: AWS::WAFv2::WebACLAssociation
+      DependsOn:
+        - ApiGatewayDeployment
+        - WAFWebACL
+        - ApiGatewayRestApi
+      Properties:
+        ResourceArn: !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/prod"
+        WebACLArn: !GetAtt WAFWebACL.Arn
 
   UsagePlan:
-    Type: AWS::ApiGateway::UsagePlan
-    Properties:
-      UsagePlanName: "SmashRankerAPIUsagePlan"
-      Description: "Usage plan with rate and quota limits for SmashRanker API"
-      ApiStages:
-        - ApiId: !Ref ApiGatewayRestApi
-          Stage: !Ref ApiGatewayDeployment
-      Throttle:
-        BurstLimit: 1000
-        RateLimit: 500
-      Quota:
-        Limit: 100000
-        Period: MONTH
+      Type: AWS::ApiGateway::UsagePlan
+      DependsOn:
+        - ApiGatewayDeployment
+        - ApiGatewayRestApi
+        - ApiGatewayRankingMethod
+        - ApiGatewayTournamentsMethod
+      Properties:
+        UsagePlanName: "SmashRankerAPIUsagePlan"
+        Description: "Usage plan with rate and quota limits for SmashRanker API"
+        ApiStages:
+          - ApiId: !Ref ApiGatewayRestApi
+            Stage: prod
+        Throttle:
+          BurstLimit: 1000
+          RateLimit: 500
+        Quota:
+          Limit: 100000
+          Period: MONTH
 
 Outputs:
   ApiUrlGetRanking:

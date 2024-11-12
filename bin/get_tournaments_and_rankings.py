@@ -5,7 +5,10 @@ from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
 #("P", "S+", "S", "A+", "A", "B+", "B", "C", "D")
 
-all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A"), start_date='2024-01-01T00:00:00', end_date='2024-07-15T00:00:00')
+all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C"), start_date='2018-01-01T00:00:00', end_date='2025-01-01T00:00:00')
+#all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+"), start_date='2020-03-16T00:00:00', end_date='2024-01-16T00:00:00')
+
+
 # ts = query_tournaments(tier_options=("P", "S+", "S", "A+", "A"), start_date='2021-06-16T00:00:00', end_date='2022-01-06T00:00:00')
 # for t in ts:
 #     print(t)
@@ -25,10 +28,12 @@ all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+",
 # import cProfile
 # import pstats
 #
-ranking_to_run = "elo"
+ranking_to_run = "bradleyterry"
 # start = time()
 # cProfile.run('ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")', 'output.prof')
+start = time()
 ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
+print(time() - start)
 # print(time()-start)
 # p = pstats.Stats('output.prof')
 # p.sort_stats('cumulative').print_stats(10)

@@ -30,7 +30,7 @@ docker run -v /Users/deaxman/Downloads/all_smash_rankings:/data \
 
 
 
-docker build -f Dockerfile.api -t smash-ranker-image .
+docker build --platform linux/amd64 -f Dockerfile.api -t smash-ranker-image .
 
 docker run -v ~/.aws:/root/.aws smash-ranker-image
 
@@ -43,39 +43,32 @@ docker run -p 8000:5000 -v ~/.aws:/root/.aws smash-ranker-image gunicorn -w "1" 
 
 curl -s "http://127.0.0.1:8000/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B,A&start_date=2024-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets" | jq .
 curl -X GET "http://127.0.0.1:8000/query_tournaments?tier_options=P,S%2B,S,A%2B,A&start_date=2021-06-16T00:00:00&end_date=2022-01-06T00:00:00" | jq .
-aws ecr create-repository --repository-name smash-ranker --region us-east-1
+
+
+aws ecr create-repository --repository-name smash-ranker-image --region us-east-1
 
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 198449958201.dkr.ecr.us-east-1.amazonaws.com
 
-docker tag smash-ranker:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker:latest
+docker tag smash-ranker-image:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker-image:latest
 
+docker push 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker-image:latest
 
 
 aws cloudformation create-stack --stack-name smash-ranker-api --template-body file://smash_ranking_api_cloudformation_template_serverless.yaml --parameters ParameterKey=ImageTag,ParameterValue=latest --capabilities CAPABILITY_IAM
 
+aws logs filter-log-events \
+    --log-group-name "/aws/lambda/SmashRankerFunction" \
+    --query 'events[*].{timestamp:timestamp, message:message}' \
+    --output text
+#aws cloudformation delete-stack --stack-name smash-ranker-api
 
+ApiGatewayRestApi=$(aws cloudformation describe-stack-resources --stack-name smash-ranker-api | jq -r '.StackResources[] | select(.LogicalResourceId == "ApiGatewayRestApi") | .PhysicalResourceId')
 
-curl -X POST "https://{API_ID}.execute-api.us-east-1.amazonaws.com/prod/get_ranking" \
--H "x-api-key: smash_ranker_api_secret_key" \
--H "Content-Type: application/json" \
--d '{
-    'ranking_to_run': 'elo'
-    'tier_options': ("P", "S+", "S", "A+", "A")
-    'start_date': '2018-07-16T00:00:00'
-    'end_date':'2024-11-06T00:00:00'
-    'evaluation_level': 'sets'
-    }'
+curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B,A&start_date=2024-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets" | jq .
 
 
 
-curl -X POST "https://{API_ID}.execute-api.us-east-1.amazonaws.com/prod/query_tournaments" \
--H "x-api-key: smash_ranker_api_secret_key" \
--H "Content-Type: application/json" \
--d '{
-    'tier_options': ("P", "S+", "S", "A+", "A")
-    'start_date': '2018-07-16T00:00:00'
-    'end_date':'2024-11-06T00:00:00'
-    }'
+curl -X GET "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/query_tournaments?tier_options=P,S%2B,S,A%2B,A&start_date=2021-06-16T00:00:00&end_date=2022-01-06T00:00:00" | jq .
 
 
 

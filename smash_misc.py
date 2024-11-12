@@ -1,6 +1,144 @@
 
+curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B&start_date=2020-03-16T00:00:00&end_date=2024-01-16T00:00:00&evaluation_level=sets" | jq .
+
+curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=bradleyterry&tier_options=P,S%2B,S,A%2B&start_date=2020-07-16T00:00:00&end_date=2024-01-16T00:00:00&evaluation_level=sets" | jq .
 
 
+curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=elo&tier_options=P,S%2B,S,A%2B&start_date=2019-01-01T00:00:00&end_date=2023-12-30T00:00:00&evaluation_level=sets" | jq .
+
+curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B&start_date=2022-07-01T00:00:00&end_date=2023-11-06T00:00:00&evaluation_level=sets" | jq .
+
+trueskill 34.65
+bt 23.41
+elo 3.71
+glicko2 5.49
+
+
+
+
+trueskill
+
+| Player | Mean Rating | Relative Uncertainty |
+|--------|-------------|----------|
+| ZETA | あcola | 46.58 | 1.93 |
+| LG | Sonix | 46.00 | 1.78 |
+| FaZe | Sparg0 | 45.88 | 1.89 |
+| FENNEL | ミーヤー | 45.28 | 1.84 |
+| LG | Tweek | 43.85 | 1.73 |
+| Nairo | 43.23 | 1.82 |
+| LG | MkLeo | 42.93 | 1.77 |
+| SHADIC | 42.88 | 1.76 |
+| Liquid | Riddles | 42.71 | 1.76 |
+| MSU | Onin | 42.37 | 1.81 |
+| DDee | 42.28 | 2.00 |
+| RC | Shuton | 42.23 | 1.75 |
+| ShinyMark | 42.14 | 1.78 |
+| sixth isthmus | 42.08 | 6.34 |
+| Solary | Glutonny | 42.05 | 1.79 |
+| Moist | Light | 41.97 | 1.70 |
+| LG | Maister | 41.75 | 1.71 |
+| Zomba | 41.73 | 1.75 |
+| DFM | zackray | 41.72 | 1.76 |
+| E36 | Hurt | 41.71 | 1.81 |
+| Samsora | 41.64 | 1.78 |
+| Ouch!? | 41.54 | 1.82 |
+| CR | ProtoBanham | 41.22 | 1.75 |
+| Moist | Kola | 41.21 | 1.71 |
+| Dabuz | 41.19 | 1.72 |
+| VGY | Sisqui | 41.16 | 1.80 |
+| PSK | ETN | WaKa | 41.14 | 1.80 |
+| DTL | Syrup | 41.13 | 1.73 |
+| Asimo | 41.13 | 1.71 |
+| Rob sucks | Desmona | 41.07 | 5.53 |
+| SOL | らる | 41.02 | 1.73 |
+
+
+BT
+
+
+
+ELO
+
+| Player | Mean Rating | Relative Uncertainty |
+|--------|-------------|----------|
+| ZETA | あcola | 2415.12 | 4.21 |
+| FENNEL | ミーヤー | 2353.02 | 3.03 |
+| FaZe | Sparg0 | 2339.91 | 2.71 |
+| LG | Sonix | 2338.54 | 3.91 |
+| LG | Tweek | 2239.69 | 3.05 |
+| RC | Shuton | 2211.70 | 2.48 |
+| LG | MkLeo | 2206.51 | 2.52 |
+| Nairo | 2203.33 | 11.36 |
+| E36 | Hurt | 2199.27 | 5.33 |
+| SHADIC | 2194.61 | 4.57 |
+| DFM | zackray | 2193.76 | 5.75 |
+| Liquid | Riddles | 2179.63 | 3.12 |
+| Solary | Glutonny | 2177.90 | 2.23 |
+| SOL | らる | 2171.27 | 4.73 |
+| CR | ProtoBanham | 2170.42 | 7.09 |
+| MSU | Onin | 2165.65 | 5.36 |
+| LG | Maister | 2161.42 | 3.21 |
+| Moist | Light | 2159.30 | 1.86 |
+| Asimo | 2155.61 | 2.56 |
+| ZETA | Tea | 2154.81 | 3.67 |
+
+
+
+
+glicko:
+
+| Player | Mean Rating | Relative Uncertainty |
+|--------|-------------|----------|
+| ZETA | あcola | 2601.17 | 157.17 |
+| LG | Sonix | 2571.37 | 142.72 |
+| FaZe | Sparg0 | 2567.84 | 159.06 |
+| FENNEL | ミーヤー | 2558.83 | 152.07 |
+| LG | Tweek | 2484.82 | 136.77 |
+| Moist | Light | 2450.25 | 137.25 |
+| LG | MkLeo | 2439.85 | 138.97 |
+| Asimo | 2419.97 | 136.80 |
+| SHADIC | 2410.39 | 140.91 |
+| Liquid | Riddles | 2404.87 | 138.99 |
+| Lima | 2402.59 | 133.94 |
+| SOL | らる | 2402.07 | 143.00 |
+| LG | Maister | 2390.85 | 133.80 |
+| DFM | zackray | 2387.18 | 138.73 |
+| RC | Shuton | 2383.82 | 145.98 |
+| ShinyMark | 2377.55 | 142.85 |
+| DTL | Syrup | 2363.06 | 139.47 |
+| MSU | Onin | 2359.25 | 144.49 |
+| BMS | crêpe salée | 2357.30 | 145.43 |
+| Solary | Glutonny | 2353.03 | 141.66 |
+| DDee | 2348.35 | 148.34 |
+| Ouch!? | 2346.99 | 143.64 |
+| ZETA | Tea | 2345.51 | 135.30 |
+| iXA | Yaura | 2343.40 | 140.63 |
+| Moist | Kola | 2341.85 | 138.17 |
+| E36 | Hurt | 2337.29 | 145.91 |
+| sixth isthmus | 2328.89 | 331.49 |
+| Zomba | 2328.16 | 140.79 |
+| PSK | ETN | WaKa | 2327.52 | 145.35 |
+| VGY | Sisqui | 2324.35 | 144.70 |
+| AREA310 | ドラ右 | 2314.68 | 144.25 |
+| Dabuz | 2308.27 | 134.71 |
+| Revo | Yoshidora | 2304.67 | 138.32 |
+| Nairo | 2304.10 | 136.93 |
+| Marss | 2300.60 | 135.78 |
+| CR | ProtoBanham | 2296.37 | 141.69 |
+| Wrath | 2287.88 | 140.20 |
+| CN / EFG | AlanDiss | 2281.64 | 139.92 |
+| Raflow | 2278.62 | 138.12 |
+| DLT/CS3 | MKBigBoss | 2276.83 | 138.00 |
+
+
+
+
+
+aws logs filter-log-events \
+    --log-group-name "/aws/lambda/SmashRankerFunction" \
+    --start-time $(( $(date +%s) * 1000 - 40000 )) \
+    --query 'events[*].{timestamp:timestamp, message:message}' \
+    --output text
 
 ts = query_tournaments(tier_options=("P", "S+", "S", "A+", "A"), start_date='2018-06-16T00:00:00', end_date='2026-11-07T00:00:00')
 all_s3_files_to_download = ["{}-{}.json".format(result["tourney_slug"], result["event_slug"]) for result in ts]

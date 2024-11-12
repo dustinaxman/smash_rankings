@@ -1,21 +1,14 @@
-#FROM python:3.11-slim
 FROM public.ecr.aws/lambda/python:3.11
 
-# Set the working directory in the container
-WORKDIR /app
+# Copy requirements file
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
-# Copy the requirements.txt file first and install dependencies
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-# && pip install gunicorn
+# Install dependencies
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
 
-# Copy the rest of the application files into the container
-COPY app.py /app/app.py
-COPY src/ /app/src/
+# Copy function code and source files
+COPY app.py ${LAMBDA_TASK_ROOT}
+COPY src/ ${LAMBDA_TASK_ROOT}/src/
 
-# Expose port 5000 for Flask
-# EXPOSE 5000
-
-# Run the application with Gunicorn
-# 4 worker processes (-w 4) and bind to all IPs on port 5000 (-b 0.0.0.0:5000)
+# Command to run the Lambda function
 CMD ["app.lambda_handler"]

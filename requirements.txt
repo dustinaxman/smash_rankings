@@ -25,4 +25,3 @@ Flask==3.0.3
 Flask-Cors==5.0.0
 glicko2==2.1.0
 serverless-wsgi==3.0.5
-uuid==1.30

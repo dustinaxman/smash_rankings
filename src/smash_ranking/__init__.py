@@ -15,19 +15,11 @@ from scipy.sparse import coo_matrix
 import os
 from src.utils.constants import LOG_FOLDER_PATH
 
-os.makedirs(LOG_FOLDER_PATH, exist_ok=True)
-log_file_name = f"log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-log_file_path = os.path.join(LOG_FOLDER_PATH, log_file_name)
-
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    handlers=[
-                        logging.StreamHandler(),                    # Console handler
-                        logging.FileHandler(log_file_path, mode='a')  # File handler with append mode
-                    ])
-
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def process_game_sets_to_simple_format(game_sets, evaluation_level):
+    logger.info("Processing games to simple form (process_game_sets_to_simple_format)")
     simple_game_sets = []
     id_to_player_name = dict()
     player_to_id = dict()
@@ -75,7 +67,7 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
         player_to_id[player_1_name] = player_1_id
         player_to_id[player_2_name] = player_2_id
         simple_game_sets.append([player_1_id, player_2_id, score1, score2])
-
+    logger.info("FINISHED process_game_sets_to_simple_format")
     return simple_game_sets, id_to_player_name, player_to_id
 
 
@@ -98,18 +90,6 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     Returns:
     - ratings: List of dictionaries with 'player', 'rating', and 'uncertainty' keys.
     """
-
-    # Configure logging
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    # Add console handler to logger
-    if not logger.handlers:
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(levelname)s: %(message)s')
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
 
     comparisons_counts = defaultdict(int)
     G = nx.DiGraph()
@@ -241,10 +221,11 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
 
 
 def run_simple_elo(simple_game_sets):
+    logger.info("START run_simple_elo")
     elo_ratings = defaultdict(lambda: 1200)  # Default initial rating of 1200
     games_played = defaultdict(int)  # Track total games played per player
     simple_game_sets_len = len(simple_game_sets)
-    logging.info(simple_game_sets_len)
+    logger.info(simple_game_sets_len)
     #looped_unrolled_matchups = [matchup for s in [simple_game_sets for epoch in range(50)] for matchup in s]
     #simple_game_sets_len*100
     # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
@@ -291,17 +272,18 @@ def run_simple_elo(simple_game_sets):
         elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
         # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
         #     break
-
+    logger.info("FINISHED run_simple_elo")
     # Prepare results in desired format
     ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings
 
 
 def run_elo(simple_game_sets):
+    logger.info("START run_elo")
     elo_ratings = defaultdict(lambda: 1200)  # Default initial rating of 1200
     games_played = defaultdict(int)  # Track total games played per player
     simple_game_sets_len = len(simple_game_sets)
-    logging.info(simple_game_sets_len)
+    logger.info(simple_game_sets_len)
     #looped_unrolled_matchups = [matchup for s in [simple_game_sets for epoch in range(50)] for matchup in s]
     #simple_game_sets_len*100
     # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
@@ -351,13 +333,14 @@ def run_elo(simple_game_sets):
         elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
         # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
         #     break
-
+    logger.info("FINISHED run_elo")
     # Prepare results in desired format
     ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings
 
 
 def run_trueskill(simple_game_sets):
+    logger.info("START run_trueskill")
     env = ts.TrueSkill()
     ts_ratings = defaultdict(lambda: env.create_rating())
     for matchup in simple_game_sets:
@@ -378,7 +361,7 @@ def run_trueskill(simple_game_sets):
                 new_rating2, new_rating1 = env.rate_1vs1(ts_ratings[player2], ts_ratings[player1])
             ts_ratings[player1] = new_rating1
             ts_ratings[player2] = new_rating2
-
+    logger.info("FINISHED run_trueskill")
     ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": 1.96 * r[1].sigma} for r in ts_ratings.items()]
     return ratings
 
