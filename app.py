@@ -110,23 +110,23 @@ def store_in_cache(param_list, result):
         table.put_item(Item=cleaned_item)
         logger.info("FINISHED sending data to cache")
         # Clean up old items if necessary
-        response = table.scan(
-            ProjectionExpression="cache_key,last_accessed",
-            Select='SPECIFIC_ATTRIBUTES'
-        )
-        logger.info("FINISHED scanning items to clean")
-        items = response['Items']
-        if len(items) > MAX_CACHE_SIZE:
-            logger.info(f"MORE ITEMS THAN CACHE SIZE ALLOWED {MAX_CACHE_SIZE}")
-            # Sort by last_accessed timestamp
-            items.sort(key=lambda x: x['last_accessed'])
-            # Delete oldest items
-            items_to_delete = items[:len(items) - MAX_CACHE_SIZE]
-            logger.info(f"Starting item delete from cache")
-            with table.batch_writer() as batch:
-                for item in items_to_delete:
-                    batch.delete_item(Key={'cache_key': item['cache_key']})
-            logger.info(f"Deleted all oldest items")
+        # response = table.scan(
+        #     ProjectionExpression="cache_key,last_accessed",
+        #     Select='SPECIFIC_ATTRIBUTES'
+        # )
+        # logger.info("FINISHED scanning items to clean")
+        # items = response['Items']
+        # if len(items) > MAX_CACHE_SIZE:
+        #     logger.info(f"MORE ITEMS THAN CACHE SIZE ALLOWED {MAX_CACHE_SIZE}")
+        #     # Sort by last_accessed timestamp
+        #     items.sort(key=lambda x: x['last_accessed'])
+        #     # Delete oldest items
+        #     items_to_delete = items[:len(items) - MAX_CACHE_SIZE]
+        #     logger.info(f"Starting item delete from cache")
+        #     with table.batch_writer() as batch:
+        #         for item in items_to_delete:
+        #             batch.delete_item(Key={'cache_key': item['cache_key']})
+        #     logger.info(f"Deleted all oldest items")
 
     except ClientError as e:
         logger.error(f"Error storing item in cache: {str(e)}")

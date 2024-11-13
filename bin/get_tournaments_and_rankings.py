@@ -28,7 +28,7 @@ all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+",
 # import cProfile
 # import pstats
 #
-ranking_to_run = "trueskill"
+ranking_to_run = "bradleyterry"
 # start = time()
 # cProfile.run('ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")', 'output.prof')
 start = time()
