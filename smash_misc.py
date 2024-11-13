@@ -57,6 +57,49 @@ BT
 
 
 
+| Player | Mean Rating | Relative Uncertainty |
+|--------|-------------|----------|
+| ZETA | あcola | 6.42 | 0.29 |
+| FaZe | Sparg0 | 6.13 | 0.22 |
+| LG | MkLeo | 6.05 | 0.21 |
+| FENNEL | ミーヤー | 6.04 | 0.25 |
+| LG | Sonix | 6.00 | 0.26 |
+| LG | Tweek | 5.73 | 0.21 |
+| Solary | Glutonny | 5.66 | 0.20 |
+| Nairo | 5.62 | 0.40 |
+| RC | Shuton | 5.57 | 0.20 |
+| MSU | Onin | 5.56 | 0.30 |
+| DFM | zackray | 5.50 | 0.30 |
+| LG | Maister | 5.45 | 0.22 |
+| Liquid | Riddles | 5.44 | 0.22 |
+| Marss | 5.42 | 0.24 |
+| CR | ProtoBanham | 5.42 | 0.31 |
+| Dabuz | 5.41 | 0.19 |
+| ZETA | Tea | 5.39 | 0.24 |
+| E36 | Hurt | 5.39 | 0.31 |
+| Samsora | 5.34 | 0.36 |
+| Zomba | 5.32 | 0.19 |
+| Revo | Yoshidora | 5.30 | 0.26 |
+| Moist | Kola | 5.29 | 0.22 |
+| Moist | Light | 5.27 | 0.17 |
+| BMS | Bloom4Eva | 5.26 | 0.31 |
+| DDee | 5.24 | 0.48 |
+| ShinyMark | 5.22 | 0.37 |
+| SHADIC | 5.19 | 0.26 |
+| Quidd | 5.16 | 0.46 |
+| MuteAce | 5.14 | 0.19 |
+| Ally | 5.10 | 0.57 |
+| VGY | Sisqui | 5.07 | 0.22 |
+| R2G | Kameme | 5.07 | 0.24 |
+| Ouch!? | 5.06 | 0.27 |
+| iXA | Yaura | 5.04 | 0.28 |
+| SBI | KEN | 5.02 | 0.21 |
+| PSK | ETN | WaKa | 5.01 | 0.35 |
+| Cosmos | 4.93 | 0.20 |
+
+
+
+
 ELO
 
 | Player | Mean Rating | Relative Uncertainty |
