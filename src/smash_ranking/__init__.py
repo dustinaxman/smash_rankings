@@ -90,10 +90,9 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     Returns:
     - ratings: List of dictionaries with 'player', 'rating', and 'uncertainty' keys.
     """
-
+    start = time()
     comparisons_counts = defaultdict(int)
     G = nx.DiGraph()
-
     for player1, player2, score1, score2 in simple_game_sets:
         score1 = int(score1)
         score2 = int(score2)
@@ -109,7 +108,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
         if score2 > 0:
             comparisons_counts[(player2, player1)] += score2
             G.add_edge(player2, player1)
-
+    print("wat1", time() - start)
     # Check if graph is empty
     if G.number_of_nodes() == 0:
         logger.error("No valid games provided.")
@@ -157,7 +156,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
 
     # Step 6: Run Bradley-Terry model using mm_pairwise
     initial_params = np.zeros(n_players)  # Start with zero log-abilities
-
+    print("wat2", time()-start)
     try:
         bt_ratings = choix.mm_pairwise(
             n_items=n_players,
@@ -170,7 +169,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     except RuntimeError as e:
         logger.error("MM algorithm did not converge: {}".format(e))
         raise
-
+    print("wat3", time() - start)
     # Normalize ratings (optional)
     bt_ratings -= np.mean(bt_ratings)  # Center the ratings
 
@@ -207,7 +206,7 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     standard_errors = np.sqrt([v if v is not None else 0 for v in variances])
     z = norm.ppf(1 - 0.025)  # Approximately 1.96 for 95% confidence
     uncertainty = z * standard_errors
-
+    print("wat5", time() - start)
     # Build the ratings list with None for players not in the top 100
     ratings = []
     for idx, (p, r, u) in enumerate(zip(players, bt_ratings, uncertainty)):
@@ -343,27 +342,109 @@ def run_trueskill(simple_game_sets):
     logger.info("START run_trueskill")
     env = ts.TrueSkill()
     ts_ratings = defaultdict(lambda: env.create_rating())
+
+    # Process each matchup
     for matchup in simple_game_sets:
         player1, player2, score1, score2 = matchup
         total_games = score1 + score2
         if total_games == 0:
             continue
 
-        # Unroll multiple games into individual 1-0 or 0-1 results
-        game_sequence = []
-        game_sequence.extend([1] * int(score1))  # Add player1's wins
-        game_sequence.extend([0] * int(score2))  # Add player2's wins
-        # Process each individual game
-        for game_result in game_sequence:
-            if game_result == 1:  # Player 1 wins
-                new_rating1, new_rating2 = env.rate_1vs1(ts_ratings[player1], ts_ratings[player2])
-            else:  # Player 2 wins
-                new_rating2, new_rating1 = env.rate_1vs1(ts_ratings[player2], ts_ratings[player1])
-            ts_ratings[player1] = new_rating1
-            ts_ratings[player2] = new_rating2
+        # Get initial ratings
+        rating1 = ts_ratings[player1]
+        rating2 = ts_ratings[player2]
+
+        # Unroll the games and process in sequence
+        net_wins = score1 - score2
+        draws = min(score1, score2)
+        wins = abs(net_wins)
+
+        # Process draws first
+        for _ in range(draws):
+            rating1, rating2 = _rate_1vs1_custom(rating1, rating2, env, drawn=True)
+
+        # Process wins
+        if net_wins > 0:
+            # Player 1 wins more games
+            for _ in range(wins):
+                rating1, rating2 = _rate_1vs1_custom(rating1, rating2, env, drawn=False)
+        elif net_wins < 0:
+            # Player 2 wins more games
+            for _ in range(wins):
+                rating2, rating1 = _rate_1vs1_custom(rating2, rating1, env, drawn=False)
+
+        # Update the ratings
+        ts_ratings[player1] = rating1
+        ts_ratings[player2] = rating2
+
     logger.info("FINISHED run_trueskill")
-    ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": 1.96 * r[1].sigma} for r in ts_ratings.items()]
+    ratings = [
+        {"player": player, "rating": rating.mu, "uncertainty": 1.96 * rating.sigma}
+        for player, rating in ts_ratings.items()
+    ]
     return ratings
+
+def _rate_1vs1_custom(rating1, rating2, env, drawn=False):
+    """
+    Computes the rating updates for a single 1vs1 game without constructing
+    the factor graph, ensuring exact results as `env.rate_1vs1`.
+
+    :param rating1: Rating of the first player.
+    :param rating2: Rating of the second player.
+    :param env: The TrueSkill environment.
+    :param drawn: Boolean indicating if the game was a draw.
+    :return: Updated ratings for rating1 and rating2.
+    """
+    # Initial means and standard deviations
+    mu1, sigma1 = rating1.mu, rating1.sigma
+    mu2, sigma2 = rating2.mu, rating2.sigma
+
+    # Precompute the performance variance
+    beta_squared = env.beta ** 2
+    sigma1_squared = sigma1 ** 2
+    sigma2_squared = sigma2 ** 2
+    pi_squared = math.pi ** 2
+
+    # Performance difference variance
+    c = math.sqrt(2 * beta_squared + sigma1_squared + sigma2_squared)
+
+    # The mean difference divided by the performance difference variance
+    t = (mu1 - mu2) / c
+
+    # Calculate the draw margin
+    draw_margin = env.draw_margin(2)
+
+    # Adjust t and draw_margin for the c scaling
+    adj_draw_margin = draw_margin / c
+
+    if drawn:
+        v = env.v_draw(t, adj_draw_margin)
+        w = env.w_draw(t, adj_draw_margin)
+    else:
+        v = env.v_win(t, adj_draw_margin)
+        w = env.w_win(t, adj_draw_margin)
+
+    # Update means
+    delta_mu1 = (sigma1_squared / c) * v
+    delta_mu2 = -(sigma2_squared / c) * v
+    mu1 += delta_mu1
+    mu2 += delta_mu2
+
+    # Update standard deviations
+    sigma1 *= math.sqrt(max(1 - (sigma1_squared / c ** 2) * w, 1e-6))
+    sigma2 *= math.sqrt(max(1 - (sigma2_squared / c ** 2) * w, 1e-6))
+
+    # Return updated ratings
+    new_rating1 = ts.Rating(mu=mu1, sigma=sigma1)
+    new_rating2 = ts.Rating(mu=mu2, sigma=sigma2)
+    return new_rating1, new_rating2
+
+# Add the draw_margin method to the TrueSkill class
+def draw_margin(self, size):
+    return ts.calc_draw_margin(self.draw_probability, size, self)
+
+# Monkey-patch the method
+ts.TrueSkill.draw_margin = draw_margin
 
 def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
     if ranking_to_run == "elo":
