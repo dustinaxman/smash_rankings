@@ -50,7 +50,7 @@ Resources:
       PackageType: Image
       Code:
         ImageUri: !Sub "198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/smash-ranker-image:${ImageTag}"
-      MemorySize: 4096
+      MemorySize: 8192
       Timeout: 300
 
   ApiGatewayRestApi:
