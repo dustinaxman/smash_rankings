@@ -1,4 +1,4 @@
-iimport React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Container, Grid, Button, Typography } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
 import axios from 'axios';
@@ -40,7 +40,7 @@ const App = () => {
 
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/query_tournaments?${queryParams}`
+        `https://dmwli1a0kj.execute-api.us-east-1.amazonaws.com/prod/query_tournaments?${queryParams}`
       );
       setTourneySlugs(response.data);
     } catch (error) {
@@ -62,10 +62,10 @@ const App = () => {
       end_date: endDate,
       evaluation_level: evaluationLevel,
     });
-
+//http://127.0.0.1:8000
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/get_ranking?${queryParams}`
+        `https://dmwli1a0kj.execute-api.us-east-1.amazonaws.com/prod/get_ranking?${queryParams}`
       );
       if (requestId === currentRequestId.current) {
         setRankings(response.data);

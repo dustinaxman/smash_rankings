@@ -64,7 +64,7 @@ aws logs filter-log-events \
 
 ApiGatewayRestApi=$(aws cloudformation describe-stack-resources --stack-name smash-ranker-api | jq -r '.StackResources[] | select(.LogicalResourceId == "ApiGatewayRestApi") | .PhysicalResourceId')
 
-curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B,A&start_date=2024-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets" | jq .
+curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B,A,B,C&start_date=2018-07-16T00:00:00&end_date=2024-11-06T00:00:00&evaluation_level=sets" | jq .
 
 
 
@@ -94,10 +94,10 @@ npm start
 
 npm run build
 
-aws s3api create-bucket --bucket smash-ranking-website --region us-east-1 --create-bucket-configuration LocationConstraint=us-east-1
-aws s3 website s3://smash-ranking-website/ --index-document index.html --error-document 404.html
+aws s3api create-bucket --bucket www.smashrankings.com --region us-east-1
+aws s3 website s3://www.smashrankings.com/ --index-document index.html --error-document 404.html
 
-aws s3 sync ./build/ s3://smash-ranking-website/
+aws s3 sync ./build/ s3://www.smashrankings.com/
 
 cat <<EOL > bucket-policy.json
 {
@@ -107,16 +107,76 @@ cat <<EOL > bucket-policy.json
       "Effect": "Allow",
       "Principal": "*",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::smash-ranking-website/*"
+      "Resource": "arn:aws:s3:::www.smashrankings.com/*"
     }
   ]
 }
 EOL
 
 
+aws s3api put-bucket-acl --bucket www.smashrankings.com --acl public-read
+aws s3api put-public-access-block --bucket www.smashrankings.com --public-access-block-configuration BlockPublicAcls=false,IgnorePublicAcls=false
 
-aws s3api put-bucket-policy --bucket smash-ranking-website --policy file://bucket-policy.json
-http://smash-ranking-website.s3-website-us-east-1.amazonaws.com
+
+aws s3api put-bucket-policy --bucket www.smashrankings.com --policy file://bucket-policy.json
+http://www.smashrankings.com.s3-website-us-east-1.amazonaws.com
+
+
+
+#UPDATE
+aws cloudformation delete-stack --stack-name smash-ranker-api
+docker build --platform linux/amd64 -f Dockerfile.api -t smash-ranker-image .
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 198449958201.dkr.ecr.us-east-1.amazonaws.com
+
+docker tag smash-ranker-image:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker-image:latest
+
+docker push 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker-image:latest
+
+aws cloudformation create-stack --stack-name smash-ranker-api --template-body file://smash_ranking_api_cloudformation_template_serverless.yaml --parameters ParameterKey=ImageTag,ParameterValue=latest --capabilities CAPABILITY_IAM
+
+ApiGatewayRestApi=$(aws cloudformation describe-stack-resources --stack-name smash-ranker-api | jq -r '.StackResources[] | select(.LogicalResourceId == "ApiGatewayRestApi") | .PhysicalResourceId')
+echo ${ApiGatewayRestApi}
+
+
+#update the App.js
+npm run build
+aws s3 sync ./build/ s3://www.smashrankings.com/
+aws cloudfront create-invalidation --distribution-id E3JSLB7SJAP4X0 --paths "/*"
+
+
+
+
+
+
+aws cloudwatch get-metric-data \
+    --start-time $(date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ') \
+    --end-time $(date -u '+%Y-%m-%dT%H:%M:%SZ') \
+    --metric-data-queries '[
+        {
+            "Id": "apiRequestCount",
+            "MetricStat": {
+                "Metric": {
+                    "Namespace": "AWS/ApiGateway",
+                    "MetricName": "Count",
+                    "Dimensions": [
+                        {
+                            "Name": "ApiName",
+                            "Value": "SmashRankerAPI"
+                        },
+                        {
+                            "Name": "Stage",
+                            "Value": "prod"
+                        }
+                    ]
+                },
+                "Period": 900,
+                "Stat": "Sum"
+            },
+            "Label": "APIRequestCount",
+            "ReturnData": true
+        }
+    ]' \
+    --output json | jq -r '.MetricDataResults[0] | [.Timestamps, .Values] | transpose | map({"Timestamp": .[0], "Value": .[1]}) | (["Timestamp","Value"] | @tsv), (.[] | [.Timestamp, .Value] | @tsv)' | column -t
 
 
 

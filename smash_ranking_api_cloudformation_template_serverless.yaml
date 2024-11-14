@@ -41,6 +41,19 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: "*"
+        - PolicyName: LambdaInsightsExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                Resource: "*"
 
   SmashRankerLambdaFunction:
     Type: AWS::Lambda::Function
@@ -52,6 +65,8 @@ Resources:
         ImageUri: !Sub "198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/smash-ranker-image:${ImageTag}"
       MemorySize: 8192
       Timeout: 300
+      TracingConfig:
+        Mode: Active  # Enables Lambda Insights and X-Ray tracing
 
   ApiGatewayRestApi:
     Type: AWS::ApiGateway::RestApi

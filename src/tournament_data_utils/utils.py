@@ -69,8 +69,7 @@ def query_tournaments(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C", "
     response = ddb_table.scan(
         FilterExpression=combined_expression
     ) if combined_expression else ddb_table.scan()
-
-    return response['Items']
+    return sorted(response['Items'], key=lambda x: x['date'], reverse=True)
 
 
 def download_single_file(s3_bucket, s3_file, local_file_path, overwrite):
