@@ -95,8 +95,17 @@ table td {
   height: 100px;
 }
 
-@media (max-width: 768px) {
-  .query-form {
+@media (max-width: 600px) {
+  .content-flex-container {
     flex-direction: column;
   }
 }
+
+.content-flex-container {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  width: 100%;
+}
+
+

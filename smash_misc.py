@@ -1,4 +1,421 @@
 
+
+
+EXPNAME="pull-data-and-get-rankings"
+
+instance_type="c7g.4xlarge"
+# C5.micro
+yourpemfilepath=/Users/deaxman/Downloads/main.pem
+aws cloudformation create-stack --stack-name ${EXPNAME} --template-body file:///Users/${USER}/Projects/WorkerRunningScripts/cloudformation_template.yaml --capabilities CAPABILITY_IAM --parameters ParameterKey=KeyName,ParameterValue=$(echo ${yourpemfilepath} | xargs basename | sed 's/\.pem//g') ParameterKey=UserName,ParameterValue=${USER} ParameterKey=InstanceType,ParameterValue=${instance_type} ParameterKey=ExpName,ParameterValue=${EXPNAME} ParameterKey=ECSAMI,ParameterValue="ami-0e44d51e3d626379b"
+
+
+cluster_id=$(aws ec2 describe-instances --filters Name=tag:"aws:cloudformation:stack-name",Values=${EXPNAME} | jq -r '.["Reservations"][-1]["Instances"][0]["PublicDnsName"]')
+ssh -i ${yourpemfilepath} ec2-user@${cluster_id}
+
+
+
+sudo yum -y install aws-cli
+sudo yum -y install install python3-pip
+sudo yum -y install vim
+sudo yum -y install screen
+python3 -m pip install pysmashgg
+python3 -m pip install torch
+python3 -m pip install numpy
+python3 -m pip install boto3
+python3 -m pip install tqdm
+python3 -m pip install matplotlib
+python3 -m pip install pandas
+
+
+vim smash_lib.py
+
+screen -S run
+
+python3
+
+from smash_ranking.ranking_tools import *
+
+
+update_tournament_cache_and_upload(new_tournaments)
+
+
+
+rankings_dict, selected_tournament_urls, config = run_new_ranking_and_backup(start_date, end_date)
+
+
+rankings_dict, selected_tournament_urls, config = run_new_ranking_and_backup("6/14/2022", "11/6/2022")
+
+
+rankings_dict, selected_tournament_urls, config = run_new_ranking_and_backup("6/14/2022", "11/5/2022", rankings_to_run=("h2h_ratio_games", "h2h_ratio_sets"), overwrite=True, prior=10)
+
+
+
+
+screen -S run
+
+python3
+
+from smash_ranking.ranking_tools import *
+
+
+
+new_tournaments = ['https://www.start.gg/tournament/let-s-make-big-moves-2023/event/ultimate-singles/matches',
+                   'https://www.start.gg/tournament/sp9-umeburasp9/event/singles/matches',
+                   'https://www.start.gg/tournament/genesis-9-1/event/ultimate-singles/matches',
+                   'https://www.start.gg/tournament/9-16/event/singles/matches',
+                   'https://www.start.gg/tournament/lvl-up-expo-2023-1/event/ultimate-singles-starts-saturday/matches',
+                   'https://www.start.gg/tournament/top-11-maesumatop-11/event/singles-tournament/matches',
+                   'https://www.start.gg/tournament/collision-2023-5/event/ultimate-singles/matches',
+                   'https://www.start.gg/tournament/seibugeki-13/event/singles/matches',
+                   'https://www.start.gg/tournament/smash-ultimate-summit-6/event/ultimate-singles/matches',
+                   'https://www.start.gg/tournament/major-upset/event/ultimate-singles-7500-prize-pool/matches',
+                    ]
+
+
+from smash_ranking.ranking_tools import *
+
+new_tournaments = [
+                   'https://www.start.gg/tournament/genesis-9-1/event/ultimate-singles/matches',
+                   'https://www.start.gg/tournament/9-16/event/singles/matches',
+                   'https://www.start.gg/tournament/lvl-up-expo-2023-1/event/ultimate-singles-starts-saturday/matches',
+                   'https://www.start.gg/tournament/top-11-maesumatop-11/event/singles-tournament/matches',
+                   'https://www.start.gg/tournament/collision-2023-5/event/ultimate-singles/matches',
+                   'https://www.start.gg/tournament/seibugeki-13/event/singles/matches',
+                    ]
+
+
+
+game_dict = update_tournament_cache_and_upload(new_tournaments)
+
+
+
+
+
+python3
+
+from smash_ranking.ranking_tools import *
+import datetime
+from dateutil.relativedelta import relativedelta
+import numpy as np
+
+
+def get_set_of_players_in_range(start_idx, end_idx, rankings_dict):
+    return [player_name for player_name, score in sorted(rankings_dict["elo_sets"], key=lambda a: a[1], reverse=True)[start_idx:end_idx]]
+
+
+def get_top_and_bottom_scores(start_idx1, end_idx1, start_idx2, end_idx2, rankings_dict, matchups, player_to_idx, player_list):
+    player_idx_list_1 = set([player_to_idx[player_name] for player_name in get_set_of_players_in_range(start_idx1, end_idx1, rankings_dict)])
+    player_idx_list_2 = set([player_to_idx[player_name] for player_name in get_set_of_players_in_range(start_idx2, end_idx2, rankings_dict)])
+    examples = []
+    top_score = 0
+    bottom_score = 0
+    for matchup in matchups:
+        p1, p2, s1, s2 = matchup
+        if p1 in player_idx_list_1 and p2 in player_idx_list_2:
+            if s2 > 0:
+                examples.append([player_list[p1], player_list[p2], s1, s2])
+            top_score += s1
+            bottom_score += s2
+        if p2 in player_idx_list_1 and p1 in player_idx_list_2:
+            if s1 > 0:
+                examples.append([player_list[p1], player_list[p2], s1, s2])
+            top_score += s2
+            bottom_score += s1
+    return top_score, bottom_score, examples
+
+
+
+def get_ranking_range_win_ratio(start_idx1, end_idx1, start_idx2, end_idx2, start_date_str, end_date_str):
+    get_recent_artifacts()
+    tournament_to_date_dict = load_json(ALL_TOURNAMENTS_DATES_FILE)
+    game_dict = load_json(ALL_TOURNAMENTS_GAMES_FILE)
+    start_date = datetime.datetime.strptime(start_date_str, '%m/%d/%Y')
+    end_date = datetime.datetime.strptime(end_date_str, '%m/%d/%Y')
+    selected_tournament_urls = get_tournaments_from_date_range(tournament_to_date_dict, start_date=start_date, end_date=end_date)
+    all_games = get_game_list_from_list_of_tournaments(game_dict, selected_tournament_urls)
+    all_sets = convert_game_score_to_winlose_set(all_games)
+    player_list = get_and_filter_player_list(all_sets, top=None, min_win_loss=0)
+    matchups, player_to_idx = get_matchups(all_sets, player_list)
+    rankings_dict, selected_tournament_urls, config = run_new_ranking_and_backup(start_date_str, end_date_str, rankings_to_run=("elo_sets"))
+    return get_top_and_bottom_scores(start_idx1, end_idx1, start_idx2, end_idx2, rankings_dict, matchups, player_to_idx, player_list)
+
+
+
+
+
+
+
+ranges = [[0, 5],
+          [5, 10],
+          [10, 20],
+          [20, 50],
+          [50, 100],
+          [100, 100000]]
+
+range_to_ratio_dict = {}
+
+for range1 in ranges:
+    for range2 in ranges:
+        start_date = "8/1/2021"
+        end_date = "5/1/2023"
+        all_ratios = []
+        all_examples = []
+        end_date = datetime.datetime.strptime(end_date, '%m/%d/%Y')
+        start_date_inc = datetime.datetime.strptime(start_date, '%m/%d/%Y')
+        end_date_inc = start_date_inc + relativedelta(months=6)
+        print(start_date_inc.strftime('%m/%d/%Y'), end_date_inc.strftime('%m/%d/%Y'))
+        r1, r2, example = get_ranking_range_win_ratio(range1[0], range1[1], range2[0], range2[1], start_date_inc.strftime('%m/%d/%Y'), end_date_inc.strftime('%m/%d/%Y'))
+        all_ratios.append([r1, r2])
+        all_examples.append(example)
+        while end_date_inc < end_date:
+            start_date_inc += relativedelta(months=6)
+            end_date_inc += relativedelta(months=6)
+            print(start_date_inc.strftime('%x'), end_date_inc.strftime('%x'))
+            r1, r2, example = get_ranking_range_win_ratio(range1[0], range1[1], range2[0], range1[1], start_date_inc.strftime('%m/%d/%Y'), end_date_inc.strftime('%m/%d/%Y'))
+            all_ratios.append([r1, r2])
+            all_examples.append(example)
+        range_to_ratio_dict[(tuple(range1), tuple(range2),)] = np.sum(all_ratios, axis=0)[1]/np.sum(all_ratios)
+
+
+
+range_to_ratio_dict_df = defaultdict(lambda: defaultdict())
+
+for k, v in range_to_ratio_dict.items():
+    if k[0][0] <= k[1][0]:
+        range_to_ratio_dict_df[k[1]][k[0]] = 1- v
+        range_to_ratio_dict_df[k[0]][k[1]] = v
+
+
+import seaborn as sns
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.DataFrame(range_to_ratio_dict_df)
+table = df.pivot('Y', 'X', 'Value')
+ax = sns.heatmap(table)
+ax.invert_yaxis()
+print(table)
+plt.show()
+
+
+TODO:
+where is kurama
+format everything nicely, put it in a repo and put in github, dockerize it, make it a flask??
+make a diffing function
+rethink alg (why does big d have a low variance but not a lot of sets)
+
+
+
+######### GET MATCHUP TABLE ######
+
+start_date="6/14/2022"
+end_date="11/27/2022"
+
+player_list = ["MkLeo", "あcola", "Light", "ProtoBanham", "Tea", "Onin", "Sparg0", "Riddles", "Shuton", "Glutonny", "Dabuz", "Tweek", "ヨシドラ", "Sonix", "ミーヤー", "Maister", "Kola", "Zomba", "KEN", "Bloom4Eva", "Kurama", "Asimo", "Cosmos", "Sisqui", "zackray"]
+
+
+df = get_matchup_table(start_date=start_date, end_date=end_date, player_list=player_list).T
+
+
+################################
+
+
+
+new_tournaments = ["https://www.start.gg/tournament/ultimate-fighting-arena-2022/event/super-smash-bros-ultimate-single-1vs1", "https://www.start.gg/tournament/port-priority-7/event/ultimate-singles", "https://www.start.gg/tournament/seibugeki-12/event/singles/overview", "https://www.start.gg/tournament/mainstage-2022/event/ultimate-singles", "https://www.start.gg/tournament/scuffed-world-tour/event/ultimate-singles"]
+
+
+update_tournament_cache_and_upload(new_tournaments)
+
+
+
+
+player_list = ["MkLeo", "あcola", "Sparg0", "Light", "ProtoBanham", "Tea", "Onin", "Riddles", "Shuton", "Glutonny", "Dabuz", "Tweek", "ヨシドラ", "Sonix", "ミーヤー", "Maister", "Kola", "Zomba", "Kurama", "Kameme"]
+
+start_date="1/01/2022"
+end_date="12/27/2022"
+
+df = get_matchup_table(start_date=start_date, end_date=end_date, player_list=player_list).T
+
+
+
+start_date="1/01/2022"
+end_date="12/27/2022"
+start_date = datetime.datetime.strptime(start_date, '%m/%d/%Y')
+end_date = datetime.datetime.strptime(end_date, '%m/%d/%Y')
+tournament_to_date_dict = load_json(ALL_TOURNAMENTS_DATES_FILE)
+game_dict = load_json(ALL_TOURNAMENTS_GAMES_FILE)
+selected_tournament_urls = get_tournaments_from_date_range(tournament_to_date_dict, start_date=start_date, end_date=end_date)
+all_games = get_game_list_from_list_of_tournaments(game_dict, selected_tournament_urls)
+all_games = convert_game_score_to_winlose_set(all_games)
+matchups, player_to_idx = get_matchups(all_games, player_list)
+
+
+
+[matchup for matchup in matchups if set([matchup[0], matchup[1]) == set([player_to_idx["Tweek"], player_to_idx["Light"]])]
+
+
+[game for game in game_dict["https://www.start.gg/tournament/mainstage-2022/event/ultimate-singles"] if set([game[0], game[2]]) == set(["Tweek", "Sparg0"])]
+
+mkleo
+acola
+spargo
+light
+proto
+onin
+
+
+tweek
+shuton
+tea
+riddles
+gluto
+
+
+dabuz
+yoshidora
+Sonix
+MIYA
+Maister
+Kola
+Zomba
+kurama
+kameme
+
+
+
+
+prob_success_given_prev_trails(14, 3)
+
+
+
+
+### GET LIKELIHOOD OF WINNING VS ALL #####
+
+p1_prob = []
+for p1 in player_list:
+    player_prob_list = []
+    for p2 in player_list:
+        if p2 not in matchup_table[p1]:
+            player_prob_list.append(0.5)
+        else:
+            s1, s2 = matchup_table[p1][p2]
+            player_prob_list.append(prob_success_given_prev_trails(s1+s2, s1))
+    p1_prob.append([p1, np.prod(player_prob_list)])
+
+
+sorted(p1_prob, key=lambda a: a[1], reverse=True)
+
+
+def magnitude_winning_matchups(list_of_matchups):
+    return np.prod([prob_success_given_prev_trails(m[0]+ m[1], m[0]) for m in list_of_matchups])
+
+
+[p for p, _ in sorted(matchup_table.items(), key=lambda a: magnitude_winning_matchups(a[1].values()), reverse=True)]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def run_new_ranking(start_date, end_date, top_player_number=None, min_win_loss=1, overwrite=False):
+    tournament_to_date_dict = load_json(ALL_TOURNAMENTS_DATES_FILE)
+    game_dict = load_json(ALL_TOURNAMENTS_GAMES_FILE)
+    selected_tournament_urls = get_tournaments_from_date_range(tournament_to_date_dict, start_date=start_date, end_date=end_date)
+    uniq_tourneyset_str = ",".join(sorted(["/".join([t.split("/")[4], t.split("/")[6]]) for t in selected_tournament_urls))
+    uniq_tourneyset_key = hashlib.sha256(uniq_tourneyset_str.encode()).hexdigest()
+    tmp_results_file = Path().home()/'tmp_results_file.json'
+    if tmp_results_file.exists():
+        tmp_results_file.unlink()
+    if overwrite or uniq_tourneyset_key not in ddb: #TODO: fix
+        rankings_dict, selected_tournament_urls, config = get_rankings(start_date=datetime.datetime(2022, 6, 14, 0, 0), end_date=datetime.datetime(2022, 10, 28, 0, 0), top_player_number=top_player_number, min_win_loss=min_win_loss, rankings_to_run=("elo_games", "elo_sets", "h2h_ratio_games"), refresh_artifacts=True)
+
+        results_s3_uri =
+        with open(tmp_results_file, 'w') as f:
+            json.dump(rankings_dict, f, cls=NpEncoder)
+        #move tmp_results_file to results_s3_uri
+        #put key in table uniq_tourneyset_key results_s3_uri
+    else:
+        #get from ddb uniq_tourneyset_key results_s3_uri
+        #download_from table
+
+
+
+
+
+
+aws dynamodb update-time-to-live --table-name SmashRankingCache \
+  --time-to-live-specification "Enabled=true, AttributeName=expires_at"
+Store Function:
+
+python
+Copy code
+def store_in_cache(param_list, result):
+    """Store item in cache with TTL to automatically expire old items."""
+    cache_key = md5_encode_key(param_list)
+    ttl = int(time()) + CACHE_TTL_SECONDS  # Set the item to expire after CACHE_TTL_SECONDS
+
+    try:
+        # Convert all floats to Decimals (DynamoDB requires this)
+        decimal_result = convert_floats_to_decimal(result)
+
+        # Create the item with the TTL attribute
+        item = {
+            'cache_key': cache_key,
+            'result': decimal_result,
+            'expires_at': ttl  # DynamoDB will use this to automatically delete the item
+        }
+
+        # Clean any empty values to avoid DynamoDB validation errors
+        cleaned_item = clean_empty_values(item)
+        logger.info("Storing data in cache")
+        
+        # Store the item in DynamoDB
+        table.put_item(Item=cleaned_item)
+        logger.info("Data stored in cache successfully")
+
+    except ClientError as e:
+        logger.error(f"Error storing item in cache: {str(e)}")
+        logger.error(f"Attempted to store item: {cleaned_item}")
+        raise
+Retrieve Function:
+
+python
+Copy code
+def get_from_cache(param_list):
+    """Retrieve item from cache without updating last accessed timestamp."""
+    cache_key = md5_encode_key(param_list)
+
+    try:
+        response = table.get_item(
+            Key={'cache_key': cache_key},
+            ConsistentRead=True
+        )
+
+        item = response.get('Item')
+        if item:
+            return item['result']
+        return None
+
+    except ClientError as e:
+        logger.error(f"Error retrieving item from cache: {str(e)}")
+        raise
+
+
+
+
+
+
+
 curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=trueskill&tier_options=P,S%2B,S,A%2B&start_date=2020-03-16T00:00:00&end_date=2024-01-16T00:00:00&evaluation_level=sets" | jq .
 
 curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/get_ranking?ranking_to_run=bradleyterry&tier_options=P,S%2B,S,A%2B&start_date=2020-07-16T00:00:00&end_date=2024-01-16T00:00:00&evaluation_level=sets" | jq .
@@ -10,6 +427,7 @@ curl -s "https://${ApiGatewayRestApi}.execute-api.us-east-1.amazonaws.com/prod/g
 
 trueskill 34.65
 bt 23.41
+
 elo 3.71
 glicko2 5.49
 
@@ -124,6 +542,97 @@ ELO
 | Moist | Light | 2159.30 | 1.86 |
 | Asimo | 2155.61 | 2.56 |
 | ZETA | Tea | 2154.81 | 3.67 |
+
+
+I create a dynamo db cache for calls from my api in this way:
+
+aws dynamodb create-table --table-name SmashRankingCache \
+  --attribute-definitions AttributeName=cache_key,AttributeType=S \
+  --key-schema AttributeName=cache_key,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+
+
+I store items in cache like this:
+
+def store_in_cache(param_list, result):
+    """Store item in cache with proper error handling"""
+    cache_key = md5_encode_key(param_list)
+    timestamp = int(time())
+
+    try:
+        # Convert all floats to Decimals
+        decimal_result = convert_floats_to_decimal(result)
+
+        # Create the item with converted values
+        item = {
+            'cache_key': cache_key,
+            'result': decimal_result,
+            'last_accessed': timestamp
+        }
+
+        # Clean any empty values that might cause DynamoDB validation errors
+        cleaned_item = clean_empty_values(item)
+        logger.info("Sending data to cache")
+        # Store in DynamoDB
+        table.put_item(Item=cleaned_item)
+        logger.info("FINISHED sending data to cache")
+        # Clean up old items if necessary
+        response = table.scan(
+            ProjectionExpression="cache_key,last_accessed",
+            Select='SPECIFIC_ATTRIBUTES'
+        )
+        logger.info("FINISHED scanning items to clean")
+        items = response['Items']
+        if len(items) > MAX_CACHE_SIZE:
+            logger.info(f"MORE ITEMS THAN CACHE SIZE ALLOWED {MAX_CACHE_SIZE}")
+            # Sort by last_accessed timestamp
+            items.sort(key=lambda x: x['last_accessed'])
+            # Delete oldest items
+            items_to_delete = items[:len(items) - MAX_CACHE_SIZE]
+            logger.info(f"Starting item delete from cache")
+            with table.batch_writer() as batch:
+                for item in items_to_delete:
+                    batch.delete_item(Key={'cache_key': item['cache_key']})
+            logger.info(f"Deleted all oldest items")
+
+    except ClientError as e:
+        logger.error(f"Error storing item in cache: {str(e)}")
+        logger.error(f"Attempted to store item: {cleaned_item}")
+        raise
+
+
+I get things from the cache this way:
+
+def get_from_cache(param_list):
+    """Retrieve item from cache with proper error handling"""
+    cache_key = md5_encode_key(param_list)
+
+    try:
+        response = table.get_item(
+            Key={'cache_key': cache_key},
+            ConsistentRead=True
+        )
+
+        item = response.get('Item')
+        if item:
+            # Update last_accessed timestamp
+            timestamp = int(time())
+            table.update_item(
+                Key={'cache_key': cache_key},
+                UpdateExpression="SET last_accessed = :timestamp",
+                ExpressionAttributeValues={':timestamp': timestamp}
+            )
+            return item['result']
+        return None
+
+    except ClientError as e:
+        logger.error(f"Error retrieving item from cache: {str(e)}")
+        raise
+
+
+
+Is there a more efficient method than scanning the table?  I initially tried having two keys but got this error:
+
 
 
 

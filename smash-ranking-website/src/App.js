@@ -158,22 +158,22 @@ const App = () => {
       <Button variant="contained" color="success" onClick={handleComputeRanking} className="compute-button">
         Compute Ranking
       </Button>
-      <Grid container spacing={4} className="content-grid">
-        <Grid item xs={12} md={6}>
+      <div className="content-flex-container">
+        <div style={{ flex: 1 }}>
           {loadingTournaments ? (
             <CircularProgress color="secondary" />
           ) : (
             <TourneyList tourneySlugs={tourneySlugs} />
           )}
-        </Grid>
-        <Grid item xs={12} md={6}>
+        </div>
+        <div style={{ flex: 1 }}>
           <RankingTable 
             rankings={rankings} 
-            parameters={lastUsedParameters}  // Pass lastUsedParameters to display the correct parameters
+            parameters={lastUsedParameters}
             loading={loadingRankings}
           />
-        </Grid>
-      </Grid>
+        </div>
+      </div>
     </Container>
   );
 };

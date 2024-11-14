@@ -1,16 +1,6 @@
 
 
-
-
-push the build api
-
-put it up in a serverless cloudformation
-check if api autoscales and how much
-change website endpoint to api
-push the website up
-
-test it out
-
+make the website look good on mobile
 
 
 
@@ -24,6 +14,8 @@ aws ecr get-login-password --region us-east-1 | docker login --username AWS --pa
 docker tag tournament_updater_image:latest 198449958201.dkr.ecr.us-east-1.amazonaws.com/tournament_updater_image:latest
 
 docker push 198449958201.dkr.ecr.us-east-1.amazonaws.com/tournament_updater_image:latest
+
+
 
 
 test the google sheets pull manually

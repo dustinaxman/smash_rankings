@@ -1,0 +1,225 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  ImageTag:
+    Description: "Tag of the Docker image to pull and run"
+    Type: String
+    Default: "latest"
+
+Resources:
+  # VPC
+  TournamentUpdaterVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: "TournamentUpdaterVPC"
+
+  # Internet Gateway
+  TournamentUpdaterInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: "TournamentUpdaterInternetGateway"
+
+  TournamentUpdaterVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TournamentUpdaterVPC
+      InternetGatewayId: !Ref TournamentUpdaterInternetGateway
+
+  # Public Subnet 1
+  TournamentUpdaterPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TournamentUpdaterVPC
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      Tags:
+        - Key: Name
+          Value: "TournamentUpdaterPublicSubnet1"
+
+  # Public Subnet 2
+  TournamentUpdaterPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TournamentUpdaterVPC
+      CidrBlock: "10.0.2.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      Tags:
+        - Key: Name
+          Value: "TournamentUpdaterPublicSubnet2"
+
+  # Route Table for Public Subnets
+  TournamentUpdaterPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TournamentUpdaterVPC
+      Tags:
+        - Key: Name
+          Value: "TournamentUpdaterPublicRouteTable"
+
+  # Route to Internet Gateway
+  TournamentUpdaterPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref TournamentUpdaterPublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref TournamentUpdaterInternetGateway
+
+  # Associate Subnet 1 with Route Table
+  TournamentUpdaterPublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TournamentUpdaterPublicSubnet1
+      RouteTableId: !Ref TournamentUpdaterPublicRouteTable
+
+  # Associate Subnet 2 with Route Table
+  TournamentUpdaterPublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TournamentUpdaterPublicSubnet2
+      RouteTableId: !Ref TournamentUpdaterPublicRouteTable
+
+  # Security Group for ECS Task
+  TournamentUpdaterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for Tournament Updater ECS task"
+      VpcId: !Ref TournamentUpdaterVPC
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"  # Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: "TournamentUpdaterSecurityGroup"
+
+  # IAM Role for ECS Task Execution with permissions for DynamoDB, S3, and ECR
+  TournamentUpdaterTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSFargateExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                Resource: "*"
+
+  # CloudWatch Log Group for ECS Task
+  TournamentUpdaterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/ecs/tournament-updater"
+      RetentionInDays: 30
+
+  # ECS Cluster
+  TournamentUpdaterCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: "tournament-updater-cluster"
+
+  # ECS Task Definition
+  TournamentUpdaterTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "tournament-updater-task"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: "2048"
+      Memory: "4096"
+      ExecutionRoleArn: !GetAtt TournamentUpdaterTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: "tournament-updater-container"
+          Image: !Sub "198449958201.dkr.ecr.${AWS::Region}.amazonaws.com/tournament_updater_image:${ImageTag}"
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TournamentUpdaterLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: "ecs"
+
+  # IAM Role for CloudWatch Event to trigger ECS task
+  TournamentUpdaterEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSTaskExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - iam:PassRole
+                Resource: "*"
+
+  # CloudWatch Event Rule to schedule ECS task weekly
+  TournamentUpdaterEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: "tournament-updater-schedule"
+      ScheduleExpression: "cron(0 12 ? * 4 *)"  # Every Wednesday at 12:00 UTC
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TournamentUpdaterCluster.Arn
+          Id: "TournamentUpdaterECS"
+          RoleArn: !GetAtt TournamentUpdaterEventRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref TournamentUpdaterTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !Ref TournamentUpdaterPublicSubnet1
+                  - !Ref TournamentUpdaterPublicSubnet2
+                SecurityGroups:
+                  - !Ref TournamentUpdaterSecurityGroup
+                AssignPublicIp: ENABLED
+
+Outputs:
+  VPCId:
+    Description: "The VPC ID"
+    Value: !Ref TournamentUpdaterVPC
+  TaskDefinitionArn:
+    Description: "ECS Task Definition ARN for the tournament updater"
+    Value: !Ref TournamentUpdaterTaskDefinition
+  CloudWatchEventRule:
+    Description: "CloudWatch Event Rule that triggers the tournament updater"
+    Value: !Ref TournamentUpdaterEventRule
