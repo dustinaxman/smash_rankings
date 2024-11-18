@@ -31,6 +31,10 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
         player_2_name = str(game_set["player_2"])
         player_1_id = game_set["id_1"]
         player_2_id = game_set["id_2"]
+        # if player_1_id == "e2974569" and player_2_id == "e2974569":
+        #     print(game_set)
+        #     print("BIG DOG")
+        #     exit(1)
         # if "Zomba" in [player_1_name, player_2_name]:
         #     print(game_set["score_1"], game_set["score_2"], player_1_name, player_2_name, game_set["winner_id"], player_1_id, player_2_id)
         if player_1_id is None or player_2_id is None:
@@ -53,10 +57,10 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
             score2 = 1 if player_2_id == game_set["winner_id"] else 0
 
         # Track player name and ID associations
-        if player_1_name in player_to_id:
-            player_1_id = player_to_id[player_1_name]
-        if player_2_name in player_to_id:
-            player_2_id = player_to_id[player_2_name]
+        # if player_1_name in player_to_id:
+        #     player_1_id = player_to_id[player_1_name]
+        # if player_2_name in player_to_id:
+        #     player_2_id = player_to_id[player_2_name]
         current_date = datetime.fromisoformat(game_set["date"])
         if current_date > last_updated_date_for_id[player_1_id]:
             id_to_player_name[player_1_id] = player_1_name
@@ -67,6 +71,10 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
         player_to_id[player_1_name] = player_1_id
         player_to_id[player_2_name] = player_2_id
         simple_game_sets.append([player_1_id, player_2_id, score1, score2])
+        # if player_1_id == "e2974569" and player_2_id == "e2974569":
+        #     print(game_set)
+        #     print("SMALL DOG")
+        #     exit(1)
     logger.info("FINISHED process_game_sets_to_simple_format")
     return simple_game_sets, id_to_player_name, player_to_id
 
@@ -108,7 +116,6 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
         if score2 > 0:
             comparisons_counts[(player2, player1)] += score2
             G.add_edge(player2, player1)
-    print("wat1", time() - start)
     # Check if graph is empty
     if G.number_of_nodes() == 0:
         logger.error("No valid games provided.")
@@ -156,7 +163,6 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
 
     # Step 6: Run Bradley-Terry model using mm_pairwise
     initial_params = np.zeros(n_players)  # Start with zero log-abilities
-    print("wat2", time()-start)
     try:
         bt_ratings = choix.mm_pairwise(
             n_items=n_players,
@@ -169,7 +175,6 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     except RuntimeError as e:
         logger.error("MM algorithm did not converge: {}".format(e))
         raise
-    print("wat3", time() - start)
     # Normalize ratings (optional)
     bt_ratings -= np.mean(bt_ratings)  # Center the ratings
 
@@ -206,7 +211,6 @@ def run_bradley_terry(simple_game_sets, max_iter=1000, tol=1e-4, alpha=0.1):
     standard_errors = np.sqrt([v if v is not None else 0 for v in variances])
     z = norm.ppf(1 - 0.025)  # Approximately 1.96 for 95% confidence
     uncertainty = z * standard_errors
-    print("wat5", time() - start)
     # Build the ratings list with None for players not in the top 100
     ratings = []
     for idx, (p, r, u) in enumerate(zip(players, bt_ratings, uncertainty)):
@@ -285,6 +289,13 @@ def run_elo(simple_game_sets):
     logger.info(simple_game_sets_len)
     #looped_unrolled_matchups = [matchup for s in [simple_game_sets for epoch in range(50)] for matchup in s]
     #simple_game_sets_len*100
+    # for matchup_idx in range(simple_game_sets_len):
+    #     matchup = simple_game_sets[matchup_idx]
+    #     player1, player2, score1, score2 = matchup
+    #     if player1 == "e2974569" and player2 == "e2974569":
+    #         print("STOP THE DOG")
+    #         print(score1, score2)
+    #         exit(1)
     # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
     for matchup_count in range(int(5000000 / simple_game_sets_len) * simple_game_sets_len):
         matchup_idx = matchup_count % simple_game_sets_len
@@ -332,10 +343,37 @@ def run_elo(simple_game_sets):
         elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
         # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
         #     break
+    sorted_rankings = sorted(elo_ratings.items(), key=lambda a: a[1], reverse=True)
+    all_rated_players = set([p[0] for p in sorted_rankings[:100]])
+    top_win_loss_record = {p[0]: [] for p in sorted_rankings[:50]}
+    print(simple_game_sets_len)
+    for matchup_idx in range(simple_game_sets_len):
+        matchup = simple_game_sets[matchup_idx]
+        player1, player2, score1, score2 = matchup
+        k_factor1 = 50
+        k_factor2 = 50
+        total_games = score1 + score2
+        if total_games == 0:
+            continue
+        actual_score1 = score1 / total_games
+        actual_score2 = score2 / total_games
+        # if player1 == "e2974569" and player2 == "e2974569":
+        #     print(score1, score2)
+        #     exit(1)
+        if player1 in top_win_loss_record:
+            # figure out negative or positive score for player 1 (update
+            expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - 2600) / 400))
+            top_win_loss_record[player1].append((player2 if player2 in all_rated_players else "UNRANKED", "loss" if score2 > score1 else "win", k_factor1 * (actual_score1 - expected_score1)))
+        if player2 in top_win_loss_record:
+            #figure out negative or positive score for player 2 (update
+            expected_score1 = 1 / (1 + 10 ** ((2600 - elo_ratings[player1]) / 400))
+            expected_score2 = 1 - expected_score1
+            top_win_loss_record[player2].append((player1 if player1 in all_rated_players else "UNRANKED", "loss" if score1 > score2 else "win", k_factor2 * (actual_score2 - expected_score2)))
+
     logger.info("FINISHED run_elo")
     # Prepare results in desired format
     ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
-    return ratings
+    return ratings, top_win_loss_record
 
 
 def run_trueskill(simple_game_sets):
@@ -427,9 +465,18 @@ def draw_margin(self, size):
 ts.TrueSkill.draw_margin = draw_margin
 
 def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
+    top_win_loss_record = None
     if ranking_to_run == "elo":
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
-        ranking = run_elo(simple_game_sets)
+        simple_game_sets_len = len(simple_game_sets)
+        for matchup_idx in range(simple_game_sets_len):
+            matchup = simple_game_sets[matchup_idx]
+            player1, player2, score1, score2 = matchup
+            if player1 == "e2974569" and player2 == "e2974569":
+                print("STOP THE CAT")
+                print(score1, score2)
+                exit(1)
+        ranking, top_win_loss_record = run_elo(simple_game_sets)
     elif ranking_to_run == "trueskill":
         start = time()
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
@@ -451,7 +498,7 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
                                                                                                evaluation_level)
         ranking = bayesian_elo(simple_game_sets)
-    return ranking, id_to_player_name, player_to_id
+    return ranking, id_to_player_name, player_to_id, top_win_loss_record
 
 
 def find_incomplete_players(game_sets, sets_threshold=None, games_threshold=None):

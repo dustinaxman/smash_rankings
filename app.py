@@ -179,7 +179,7 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
         logger.info(f"Completed file download")
         all_sets = get_all_sets_from_tournament_files(all_s3_files_to_download)
         logger.info(f"Completed getting all sets from tournaments")
-        ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run,
+        ratings, id_to_player_name, player_to_id, top_30_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run,
                                                                      evaluation_level="sets")
         logger.info(f"Completed getting all player ratings")
         result = {"ratings": sorted(ratings, key=lambda a: a["rating"], reverse=True)[:THRESHOLD_PLAYER_NUM_TO_RETURN], "id_to_player_name": id_to_player_name, "player_to_id": player_to_id}
