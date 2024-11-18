@@ -362,13 +362,11 @@ def run_elo(simple_game_sets):
         #     exit(1)
         if player1 in top_win_loss_record:
             # figure out negative or positive score for player 1 (update
-            expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - 2600) / 400))
-            top_win_loss_record[player1].append((player2 if player2 in all_rated_players else "UNRANKED", "loss" if score2 > score1 else "win", k_factor1 * (actual_score1 - expected_score1)))
+            # expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - 2600) / 400))  chance of player 1 winning
+            top_win_loss_record[player1].append((player2 if player2 in all_rated_players else "UNRANKED", "loss" if score2 > score1 else "win", elo_ratings[player2]))
         if player2 in top_win_loss_record:
             #figure out negative or positive score for player 2 (update
-            expected_score1 = 1 / (1 + 10 ** ((2600 - elo_ratings[player1]) / 400))
-            expected_score2 = 1 - expected_score1
-            top_win_loss_record[player2].append((player1 if player1 in all_rated_players else "UNRANKED", "loss" if score1 > score2 else "win", k_factor2 * (actual_score2 - expected_score2)))
+            top_win_loss_record[player2].append((player1 if player1 in all_rated_players else "UNRANKED", "loss" if score1 > score2 else "win", elo_ratings[player1]))
 
     logger.info("FINISHED run_elo")
     # Prepare results in desired format

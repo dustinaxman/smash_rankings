@@ -39,13 +39,18 @@ ranking_to_run = "elo"
 # cProfile.run('ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")', 'output.prof')
 start = time()
 ratings, id_to_player_name, player_to_id, top_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
+player_to_score_map = {r["player"]: r["rating"] for r in ratings}
 print(time() - start)
 top_win_loss_record = top_win_loss_record.items()
 top_win_loss_record_merged = []
 for p, r in top_win_loss_record:
     new_r = []
     pid_winloss_to_total_score = defaultdict(lambda: [int(0), float(0.0)])
-    for p2, winloss, score in r:
+    for p2, winloss, p2_rating in r:
+        if winloss == "win":
+            score = 100 * (1 + 10 ** ((p2_rating - 2700) / 400))
+        else:
+            score = -(100 * (1 + 10 ** ((2700 - max(2200, p2_rating)) / 400)))
         if p2 == "UNRANKED" and winloss == "loss":
             new_r.append((p2, winloss, 1, score))
         else:
@@ -54,7 +59,7 @@ for p, r in top_win_loss_record:
     for (p2, winloss), (total_count, total_score) in pid_winloss_to_total_score.items():
         new_r.append((p2, winloss, total_count, total_score))
     top_win_loss_record_merged.append((p, new_r))
-for player, records in sorted(top_win_loss_record_merged, key=lambda a: sum([s[3] for s in a[1]]), reverse=True)[:10]:
+for player, records in sorted(top_win_loss_record_merged, key=lambda a: sum([s[3] for s in a[1]]), reverse=True)[:20]:
     if True or "ミーヤー" in id_to_player_name[player] or "cola" in id_to_player_name[player]:
         print(player, id_to_player_name[player], sum([s[3] for s in records]))
         for p in [(r[0], id_to_player_name[r[0]] if r[0] != "UNRANKED" else "UNRANKED", r[1], r[2], r[3]) for r in sorted(records, key=lambda a: abs(a[3]), reverse=True)]:
@@ -74,7 +79,7 @@ for player, records in sorted(top_win_loss_record_merged, key=lambda a: sum([s[3
 #
 ratings_dict = {"name": ranking_to_run, "ratings": [{"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in ratings]}
 # #ratings_dict = {"name": ranking_to_run, "ratings": ratings}
-display_rating(ratings_dict, threshold=200)
+display_rating(ratings_dict, threshold=300)
 
     # [{'event_slug': 'ultimate-singles',
     #   'date': '2024-02-16T18:00:00',
