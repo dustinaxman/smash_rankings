@@ -180,11 +180,14 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
         all_sets = get_all_sets_from_tournament_files(all_s3_files_to_download)
         logger.info(f"Completed getting all sets from tournaments")
         ratings, id_to_player_name, player_to_id, top_30_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run,
-                                                                     evaluation_level="sets")
+                                                                     evaluation_level=evaluation_level)
         logger.info(f"Completed getting all player ratings")
         result = {"ratings": sorted(ratings, key=lambda a: a["rating"], reverse=True)[:THRESHOLD_PLAYER_NUM_TO_RETURN], "id_to_player_name": id_to_player_name, "player_to_id": player_to_id}
-        player_win_loss_interpretation = get_win_loss_interpretation(ratings, top_30_win_loss_record, id_to_player_name)
-        player_to_player_win_loss_interpretation_map = {p["player_id"]: p for p in player_win_loss_interpretation}
+        if ranking_to_run == "elo":
+            player_win_loss_interpretation = get_win_loss_interpretation(ratings, top_30_win_loss_record, id_to_player_name)
+            player_to_player_win_loss_interpretation_map = {p["player_id"]: p for p in player_win_loss_interpretation}
+        else:
+            player_to_player_win_loss_interpretation_map = {}
         ratings_player_name_added = [
             {"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"], "player_win_loss_interpretation": player_to_player_win_loss_interpretation_map.get(r["player"], None)} for r in
             result["ratings"]]

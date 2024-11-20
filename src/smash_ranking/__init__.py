@@ -67,6 +67,11 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
             player_1_id = "e2974569"
         if player_2_id == "1f378ab2":
             player_2_id = "e2974569"
+        if player_1_id == "263c6038":
+            player_1_id = "b5230de8"
+        if player_2_id == "263c6038":
+            player_2_id = "b5230de8"
+
         current_date = datetime.fromisoformat(game_set["date"])
         if current_date > last_updated_date_for_id[player_1_id]:
             id_to_player_name[player_1_id] = player_1_name
@@ -369,10 +374,9 @@ def run_elo(simple_game_sets):
         # all_win_loss_record[player2].append((player1, 1 if matchup_count < simple_game_sets_len else 0, "win" if score1 < score2 else "loss", p2_update))
         # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
         #     break
-    import numpy as np
     logger.info("FINISHED run_elo")
     # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating*((1 / (1 + np.exp(((2000/games_played[player])-21)/200))) + 0.5), "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
+    ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings, player_update_tracker
 
 

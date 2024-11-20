@@ -6,15 +6,15 @@ from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
 start_end = [
 #['2022-01-01T00:00:00', '2022-12-30T00:00:00'],
-['2023-01-01T00:00:00', '2023-12-30T00:00:00'],
-['2024-01-01T00:00:00', '2024-07-15T00:00:00'],
+#['2023-01-01T00:00:00', '2023-12-30T00:00:00'],
+#['2024-01-01T00:00:00', '2024-07-15T00:00:00'],
 ['2024-07-15T00:00:00', '2024-11-19T00:00:00']
 ]
 
-ranking_to_run = "elo"
+ranking_to_run = "trueskill"
 
 for start_date, end_date in start_end:
-	all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+"), start_date=start_date, end_date=end_date)
+	all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A"), start_date=start_date, end_date=end_date)
 	start = time()
 	ratings, id_to_player_name, player_to_id, top_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
 	print(time()-start)

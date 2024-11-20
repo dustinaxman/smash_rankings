@@ -41,7 +41,7 @@ const App = () => {
 
     try {
       const response = await axios.get(
-        `https://uzmif52coi.execute-api.us-east-1.amazonaws.com/prod/query_tournaments?${queryParams}`
+        `https://8b7q4ws374.execute-api.us-east-1.amazonaws.com/prod/query_tournaments?${queryParams}`
       );
       setTourneySlugs(response.data);
     } catch (error) {
@@ -67,7 +67,7 @@ const App = () => {
 //http://127.0.0.1:8000
     try {
       const response = await axios.get(
-        `https://uzmif52coi.execute-api.us-east-1.amazonaws.com/prod/get_ranking?${queryParams}`
+        `https://8b7q4ws374.execute-api.us-east-1.amazonaws.com/prod/get_ranking?${queryParams}`
       );
       console.log(response);
       if (requestId === currentRequestId.current) {

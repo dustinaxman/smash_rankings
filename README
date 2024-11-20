@@ -136,6 +136,8 @@ http://www.smashrankings.com.s3-website-us-east-1.amazonaws.com
 
 #UPDATE
 
+aws cloudformation delete-stack --stack-name smash-ranker-api
+
 docker build --platform linux/amd64 -f Dockerfile.api -t smash-ranker-image .
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 198449958201.dkr.ecr.us-east-1.amazonaws.com
 
@@ -143,8 +145,7 @@ docker tag smash-ranker-image:latest 198449958201.dkr.ecr.us-east-1.amazonaws.co
 
 docker push 198449958201.dkr.ecr.us-east-1.amazonaws.com/smash-ranker-image:latest
 
-aws cloudformation delete-stack --stack-name smash-ranker-api
-sleep 60
+
 aws cloudformation create-stack --stack-name smash-ranker-api --template-body file://smash_ranking_api_cloudformation_template_serverless.yaml --parameters ParameterKey=ImageTag,ParameterValue=latest --capabilities CAPABILITY_IAM
 
 ApiGatewayRestApi=$(aws cloudformation describe-stack-resources --stack-name smash-ranker-api | jq -r '.StackResources[] | select(.LogicalResourceId == "ApiGatewayRestApi") | .PhysicalResourceId')
@@ -158,6 +159,7 @@ npm start
 
 npm run build
 aws s3 sync ./build/ s3://www.smashrankings.com/
+sleep 5
 aws cloudfront create-invalidation --distribution-id E3JSLB7SJAP4X0 --paths "/*"
 
 
