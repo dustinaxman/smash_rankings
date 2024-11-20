@@ -6,6 +6,7 @@ import queryString from 'query-string';
 import QueryForm from './QueryForm';
 import TourneyList from './TourneyList';
 import RankingTable from './RankingTable';
+import DetailSplash from './DetailSplash';
 import './App.css';
 
 const App = () => {
@@ -21,7 +22,7 @@ const App = () => {
   const [loadingTournaments, setLoadingTournaments] = useState(false);
   const [initializedFromUrl, setInitializedFromUrl] = useState(false);
 
-  // New state to hold the last used parameters
+  const [selectedDetails, setSelectedDetails] = useState(null); // For splash details
   const [lastUsedParameters, setLastUsedParameters] = useState({
     startDate,
     endDate,
@@ -40,7 +41,7 @@ const App = () => {
 
     try {
       const response = await axios.get(
-        `https://dmwli1a0kj.execute-api.us-east-1.amazonaws.com/prod/query_tournaments?${queryParams}`
+        `https://uzmif52coi.execute-api.us-east-1.amazonaws.com/prod/query_tournaments?${queryParams}`
       );
       setTourneySlugs(response.data);
     } catch (error) {
@@ -55,8 +56,9 @@ const App = () => {
     currentRequestId.current = requestId;
     setLoadingRankings(true);
 
+    // Ensure "elo_normalized_by_uncertainty" is treated as "elo" for the API request
     const queryParams = queryString.stringify({
-      ranking_to_run: rankingType,
+      ranking_to_run: rankingType === "elo_normalized_by_uncertainty" ? "elo" : rankingType,
       tier_options: tierOptions.join(','),
       start_date: startDate,
       end_date: endDate,
@@ -65,8 +67,9 @@ const App = () => {
 //http://127.0.0.1:8000
     try {
       const response = await axios.get(
-        `https://dmwli1a0kj.execute-api.us-east-1.amazonaws.com/prod/get_ranking?${queryParams}`
+        `https://uzmif52coi.execute-api.us-east-1.amazonaws.com/prod/get_ranking?${queryParams}`
       );
+      console.log(response);
       if (requestId === currentRequestId.current) {
         setRankings(response.data);
       }
@@ -77,7 +80,7 @@ const App = () => {
         setLoadingRankings(false);
       }
     }
-  };
+};
 
   useEffect(() => {
     const params = queryString.parse(window.location.search);
@@ -143,9 +146,16 @@ const App = () => {
       rankingType,
       evaluationLevel
     });
-
     // Call fetchRankings to get the latest rankings data
     fetchRankings();
+  };
+
+  const handleRowClick = (details) => {
+    setSelectedDetails(details);
+  };
+
+  const closeSplash = () => {
+    setSelectedDetails(null);
   };
 
   return (
@@ -171,9 +181,16 @@ const App = () => {
             rankings={rankings} 
             parameters={lastUsedParameters}
             loading={loadingRankings}
+            onRowClick={handleRowClick}
           />
         </div>
       </div>
+      {selectedDetails && (
+        <DetailSplash 
+          details={selectedDetails} 
+          onClose={closeSplash} 
+        />
+      )}
     </Container>
   );
 };

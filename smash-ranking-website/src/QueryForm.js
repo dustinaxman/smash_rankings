@@ -53,6 +53,7 @@ const QueryForm = ({ tierOptions, startDate, endDate, rankingType, evaluationLev
             onChange={handleChange}
           >
             <MenuItem value="elo">Elo</MenuItem>
+            <MenuItem value="elo_normalized_by_uncertainty">Elo (normalized by uncertainty)</MenuItem>
             <MenuItem value="trueskill">TrueSkill</MenuItem>
             <MenuItem value="bradleyterry">Bradley-Terry</MenuItem>
             <MenuItem value="glicko2">Glicko-2</MenuItem>

@@ -26,6 +26,11 @@ body {
   justify-content: center;
 }
 
+.clickable-row:hover {
+  background-color: #e0f7fa; /* Light teal for hover effect */
+  transition: background-color 0.3s ease;
+}
+
 .compute-button {
   font-size: 1rem;
   font-weight: 600;

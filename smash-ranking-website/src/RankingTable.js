@@ -2,8 +2,15 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
 
-const RankingTable = ({ rankings, parameters, loading }) => {
+const RankingTable = ({ rankings, parameters, loading, onRowClick }) => {
   const { startDate, endDate, tierOptions, rankingType, evaluationLevel } = parameters;
+
+  const transformRating = (rating, uncertainty) => {
+    if (uncertainty > 70) {
+      return "Honorable Mention";
+    }
+    return rating * ((1 / (1 + Math.exp((uncertainty - 21) / 200))) + 0.5);
+  };
 
   return (
     <Paper elevation={3} className="ranking-table">
@@ -27,13 +34,36 @@ const RankingTable = ({ rankings, parameters, loading }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {rankings.slice(0, 100).map((ranking, index) => (
-                <TableRow key={index}>
-                  <TableCell>{ranking.player}</TableCell>
-                  <TableCell>{Number(ranking.rating).toFixed(2)}</TableCell>
-                  <TableCell>{Number(ranking.uncertainty).toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
+              {rankings.slice(0, 100).map((ranking, index) => {
+                const ratingToDisplay =
+                  rankingType === "elo_normalized_by_uncertainty"
+                    ? transformRating(Number(ranking.rating), Number(ranking.uncertainty))
+                    : Number(ranking.rating);
+
+                return (
+                  <TableRow
+                    key={index}
+                    onClick={() => {
+                      if (ranking.player_win_loss_interpretation) {
+                        onRowClick(ranking.player_win_loss_interpretation);
+                      }
+                    }}
+                    style={{
+                      cursor: ranking.player_win_loss_interpretation ? "pointer" : "default",
+                      backgroundColor: ranking.player_win_loss_interpretation ? "#f9f9f9" : "inherit",
+                    }}
+                    className={ranking.player_win_loss_interpretation ? "clickable-row" : ""}
+                  >
+                    <TableCell>{ranking.player}</TableCell>
+                    <TableCell>
+                      {typeof ratingToDisplay === 'number' 
+                        ? ratingToDisplay.toFixed(2) 
+                        : ratingToDisplay}
+                    </TableCell>
+                    <TableCell>{Number(ranking.uncertainty).toFixed(2)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
