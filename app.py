@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 from datetime import datetime
 import logging
 from src.utils.constants import LOG_FOLDER_PATH, THRESHOLD_PLAYER_NUM_TO_RETURN, MAX_CACHE_SIZE
-from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, query_tournaments, download_s3_files
+from src.tournament_data_utils.utils import get_all_sets_from_tournament_files, query_tournaments, download_s3_files, get_win_loss_interpretation
 from src.smash_ranking import get_player_rating
 from decimal import Decimal
 from serverless_wsgi import handle_request  # WSGI adapter for Lambda
@@ -183,8 +183,10 @@ def get_ranking_and_cache(ranking_to_run, tier_options, start_date, end_date, ev
                                                                      evaluation_level="sets")
         logger.info(f"Completed getting all player ratings")
         result = {"ratings": sorted(ratings, key=lambda a: a["rating"], reverse=True)[:THRESHOLD_PLAYER_NUM_TO_RETURN], "id_to_player_name": id_to_player_name, "player_to_id": player_to_id}
+        player_win_loss_interpretation = get_win_loss_interpretation(ratings, top_30_win_loss_record, id_to_player_name)
+        player_to_player_win_loss_interpretation_map = {p["player_id"]: p for p in player_win_loss_interpretation}
         ratings_player_name_added = [
-            {"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in
+            {"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"], "player_win_loss_interpretation": player_to_player_win_loss_interpretation_map.get(r["player"], None)} for r in
             result["ratings"]]
         logger.info(f"Adding ratings to rating CACHE")
         store_in_cache(params, ratings_player_name_added)

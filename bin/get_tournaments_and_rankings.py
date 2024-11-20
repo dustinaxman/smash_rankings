@@ -1,15 +1,48 @@
-from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating, get_all_sets_from_tournament_files, query_tournaments, download_s3_files
+from src.tournament_data_utils.utils import get_all_sets_from_dates_and_tiers, display_rating, get_win_loss_interpretation, get_all_sets_from_tournament_files, query_tournaments, download_s3_files
 from src.smash_ranking import get_player_rating
 from time import time
+import json
 from src.utils.constants import LOCAL_TOURNAMENT_DATA_DIR
 
+start_end = [
+#['2022-01-01T00:00:00', '2022-12-30T00:00:00'],
+['2023-01-01T00:00:00', '2023-12-30T00:00:00'],
+['2024-01-01T00:00:00', '2024-07-15T00:00:00'],
+['2024-07-15T00:00:00', '2024-11-19T00:00:00']
+]
+
+ranking_to_run = "elo"
+
+for start_date, end_date in start_end:
+	all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+"), start_date=start_date, end_date=end_date)
+	start = time()
+	ratings, id_to_player_name, player_to_id, top_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
+	print(time()-start)
+	sorted_rankings = sorted(ratings, key=lambda a: a["rating"], reverse=True)
+	ratings_dict = {"name": ranking_to_run, "ratings": [{"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in ratings]}
+	print(start_date, end_date)
+	display_rating(ratings_dict, threshold=30)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #("P", "S+", "S", "A+", "A", "B+", "B", "C", "D")
-print("DOGS")
+#print("DOGS")
 #all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C"), start_date='2018-01-01T00:00:00', end_date='2025-01-01T00:00:00')
 #all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2023-01-01T00:00:00', end_date='2024-01-01T00:00:00')
 
 
-all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date='2024-01-01T00:00:00', end_date='2024-07-15T00:00:00')
+#all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+"), start_date='2024-07-15T00:00:00', end_date='2024-11-19T00:00:00')
 
 #all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A"), start_date='2023-03-10T00:00:00', end_date='2023-06-01T00:00:00')
 
@@ -30,41 +63,38 @@ all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+",
 #
 
 from collections import defaultdict
-print("CATS")
-# import cProfile
-# import pstats
-#
-ranking_to_run = "elo"
+# print("CATS")
+# # import cProfile
+# # import pstats
+# #
+# ranking_to_run = "elo"
+# # start = time()
+# # cProfile.run('ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")', 'output.prof')
 # start = time()
-# cProfile.run('ratings, id_to_player_name, player_to_id = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")', 'output.prof')
-start = time()
-ratings, id_to_player_name, player_to_id, top_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
-player_to_score_map = {r["player"]: r["rating"] for r in ratings}
-print(time() - start)
-top_win_loss_record = top_win_loss_record.items()
-top_win_loss_record_merged = []
-for p, r in top_win_loss_record:
-    new_r = []
-    pid_winloss_to_total_score = defaultdict(lambda: [int(0), float(0.0)])
-    for p2, winloss, p2_rating in r:
-        if winloss == "win":
-            score = 100 * (1 + 10 ** ((p2_rating - 2700) / 400))
-        else:
-            score = -(100 * (1 + 10 ** ((2700 - max(2200, p2_rating)) / 400)))
-        if p2 == "UNRANKED" and winloss == "loss":
-            new_r.append((p2, winloss, 1, score))
-        else:
-            pid_winloss_to_total_score[(p2, winloss)][1] += score
-            pid_winloss_to_total_score[(p2, winloss)][0] += 1
-    for (p2, winloss), (total_count, total_score) in pid_winloss_to_total_score.items():
-        new_r.append((p2, winloss, total_count, total_score))
-    top_win_loss_record_merged.append((p, new_r))
-for player, records in sorted(top_win_loss_record_merged, key=lambda a: sum([s[3] for s in a[1]]), reverse=True)[:20]:
-    if True or "ミーヤー" in id_to_player_name[player] or "cola" in id_to_player_name[player]:
-        print(player, id_to_player_name[player], sum([s[3] for s in records]))
-        for p in [(r[0], id_to_player_name[r[0]] if r[0] != "UNRANKED" else "UNRANKED", r[1], r[2], r[3]) for r in sorted(records, key=lambda a: abs(a[3]), reverse=True)]:
-            print(p)
-        print("")
+# ratings, id_to_player_name, player_to_id, top_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets")
+#
+# print(time()-start)
+# print("WAT")
+#
+# sorted_rankings = sorted(ratings, key=lambda a: a["rating"], reverse=True)
+
+# player_win_loss_interpretation = get_win_loss_interpretation(ratings, top_win_loss_record, id_to_player_name)
+#
+# print("dustin", time()-start)
+
+
+
+# for p1_info in player_win_loss_interpretation:
+#     print(p1_info["player_name"], p1_info["total_for_player"])
+#     for winloss_info in p1_info["all_wins_and_losses"]:
+#         print(json.dumps(winloss_info))
+
+
+# for player_1_dict in player_win_loss_interpretation:
+#     print(player_1_dict)
+
+
+#print(time()-start)
 # print(time()-start)
 # p = pstats.Stats('output.prof')
 # p.sort_stats('cumulative').print_stats(10)
@@ -77,9 +107,9 @@ for player, records in sorted(top_win_loss_record_merged, key=lambda a: sum([s[3
 # #     if len(v) != 1:
 # #         print(k, v)
 #
-ratings_dict = {"name": ranking_to_run, "ratings": [{"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in ratings]}
-# #ratings_dict = {"name": ranking_to_run, "ratings": ratings}
-display_rating(ratings_dict, threshold=300)
+# ratings_dict = {"name": ranking_to_run, "ratings": [{"player": id_to_player_name[r["player"]], "rating": r["rating"], "uncertainty": r["uncertainty"]} for r in ratings]}
+# # #ratings_dict = {"name": ranking_to_run, "ratings": ratings}
+# display_rating(ratings_dict, threshold=50)
 
     # [{'event_slug': 'ultimate-singles',
     #   'date': '2024-02-16T18:00:00',

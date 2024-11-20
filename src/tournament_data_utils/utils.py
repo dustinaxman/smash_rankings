@@ -151,3 +151,93 @@ def display_rating(ratings_dict, threshold=100):
         else:
             print(f"| {player} | {rating:.2f} | None |")
 
+
+def get_win_loss_interpretation(ratings, top_win_loss_record, id_to_player_name):
+    sorted_rankings = sorted(ratings, key=lambda a: a["rating"], reverse=True)
+    player_to_rank = {}
+    for i, r in enumerate(sorted_rankings):
+        player_to_rank[r["player"]] = i + 1
+
+    top_players = [r["player"] for r in sorted_rankings[:25]]
+
+    top_win_loss_record_merged = {}
+
+    for player1 in top_players:
+        top_win_loss_record_merged[player1] = {}
+        for player2, winloss_record in top_win_loss_record[player1].items():
+            matchup_count_win, p1_update_win = winloss_record["win"]
+            matchup_count_loss, p1_update_loss = winloss_record["loss"]
+
+            if player_to_rank[player2] > 100:
+                record = top_win_loss_record_merged[player1].setdefault("UNRANKED", {"win": [0, 0], "loss": [0, 0]})
+                record["win"][0] += matchup_count_win
+                record["win"][1] += p1_update_win
+                record["loss"][0] += matchup_count_loss
+                record["loss"][1] += p1_update_loss
+            else:
+                top_win_loss_record_merged[player1][player2] = {
+                    "win": [matchup_count_win, p1_update_win],
+                    "loss": [matchup_count_loss, p1_update_loss],
+                }
+
+    player_win_loss_interpretation = []
+    player_totals = {
+        player1: sum(
+            record["win"][1] + record["loss"][1] for record in matchups.values()
+        )
+        for player1, matchups in top_win_loss_record_merged.items()
+    }
+
+    for player1 in sorted(player_totals, key=player_totals.get, reverse=True):
+        total_for_player = player_totals[player1]
+        matchups = top_win_loss_record_merged[player1]
+        all_wins_and_losses = []
+
+        for player2, record in matchups.items():
+            name = id_to_player_name.get(player2, "UNRANKED") if player2 != "UNRANKED" else "UNRANKED"
+            rank = player_to_rank.get(player2, "UNRANKED") if player2 != "UNRANKED" else "UNRANKED"
+
+            if record["win"][0] > 0:
+                all_wins_and_losses.append(
+                    {"player_id": player2, "player_name": name, "player_rank": rank, "win_count": record["win"][0], "score": record["win"][1]}
+                )
+            if record["loss"][0] > 0:
+                all_wins_and_losses.append(
+                    {"player_id": player2, "player_name": name, "player_rank": rank, "loss_count": record["loss"][0], "score": record["loss"][1]}
+                )
+
+        all_wins_and_losses.sort(key=lambda x: abs(x["score"]), reverse=True)
+        player_win_loss_interpretation.append(
+            {"player_id": player1, "player_name": id_to_player_name[player1], "total_for_player": total_for_player, "all_wins_and_losses": all_wins_and_losses}
+        )
+    return player_win_loss_interpretation
+
+
+
+
+
+# top_win_loss_record_merged = defaultdict(lambda: defaultdict(lambda: {"win": [0, 0], "loss": [0, 0]}))
+# for player1 in top_players:
+#     for player2, winloss_record in top_win_loss_record[player1].items():
+#         matchup_count_loss, p1_update_loss = winloss_record["loss"]
+#         matchup_count_win, p1_update_win = winloss_record["win"]
+#         if player_to_rank[player2] > 100:
+#             top_win_loss_record_merged[player1]["UNRANKED"]["win"][0] += matchup_count_win
+#             top_win_loss_record_merged[player1]["UNRANKED"]["win"][1] += p1_update_win
+#         else:
+#             top_win_loss_record_merged[player1][player2]["win"][0] = matchup_count_win
+#             top_win_loss_record_merged[player1][player2]["win"][1] = p1_update_win
+#         top_win_loss_record_merged[player1][player2]["loss"][0] = matchup_count_loss
+#         top_win_loss_record_merged[player1][player2]["loss"][1] = p1_update_loss
+#
+# player_win_loss_interpretation = []
+# for player1, matchups_dict in sorted(top_win_loss_record_merged.items(), key = lambda a: sum([a[1][p2]["win"][1] for p2 in a[1]]) + sum([a[1][p2]["loss"][1] for p2 in a[1]]), reverse=True):
+#     total_for_player = sum([top_win_loss_record_merged[player1][p2]["win"][1] for p2 in top_win_loss_record_merged[player1]]) + sum([top_win_loss_record_merged[player1][p2]["loss"][1] for p2 in top_win_loss_record_merged[player1]])
+#     all_wins_and_losses = []
+#     for player2 in top_win_loss_record_merged[player1]:
+#         if top_win_loss_record_merged[player1][player2]["win"][0] > 0:
+#             all_wins_and_losses.append((player2, id_to_player_name[player2] if player2 != "UNRANKED" else "UNRANKED", player_to_rank[player2] if player2 != "UNRANKED" else "UNRANKED", "wins", top_win_loss_record_merged[player1][player2]["win"][0], top_win_loss_record_merged[player1][player2]["win"][1]))
+#         if top_win_loss_record_merged[player1][player2]["loss"][0] > 0:
+#             all_wins_and_losses.append((player2, id_to_player_name[player2] if player2 != "UNRANKED" else "UNRANKED", player_to_rank[player2] if player2 != "UNRANKED" else "UNRANKED", "losses", top_win_loss_record_merged[player1][player2]["loss"][0], top_win_loss_record_merged[player1][player2]["loss"][1]))
+#     player_win_loss_interpretation.append((player1, total_for_player, sorted(all_wins_and_losses, key=lambda a: abs(a[5]), reverse=True)))
+#

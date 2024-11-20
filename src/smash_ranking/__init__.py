@@ -37,7 +37,7 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
         #     exit(1)
         # if "Zomba" in [player_1_name, player_2_name]:
         #     print(game_set["score_1"], game_set["score_2"], player_1_name, player_2_name, game_set["winner_id"], player_1_id, player_2_id)
-        if player_1_id is None or player_2_id is None:
+        if player_1_id is None or player_2_id is None or player_1_id == "" or player_2_id == "":
             continue
         if game_set["score_1"] is None or game_set["score_2"] is None:
             continue
@@ -58,9 +58,15 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
 
         # Track player name and ID associations
         # if player_1_name in player_to_id:
-        #     player_1_id = player_to_id[player_1_name]
+        #     if player_1_id != "b2fa1c21": # Light has 2 accounts AND there is another player with the tag "Light" https://www.start.gg/user/b2fa1c21/details
+        #         player_1_id = player_to_id[player_1_name]
         # if player_2_name in player_to_id:
-        #     player_2_id = player_to_id[player_2_name]
+        #     if player_2_id != "b2fa1c21": # Light has 2 accounts AND there is another player with the tag "Light" https://www.start.gg/user/b2fa1c21/details
+        #         player_2_id = player_to_id[player_2_name]
+        if player_1_id == "1f378ab2":
+            player_1_id = "e2974569"
+        if player_2_id == "1f378ab2":
+            player_2_id = "e2974569"
         current_date = datetime.fromisoformat(game_set["date"])
         if current_date > last_updated_date_for_id[player_1_id]:
             id_to_player_name[player_1_id] = player_1_name
@@ -277,6 +283,7 @@ def run_simple_elo(simple_game_sets):
         #     break
     logger.info("FINISHED run_simple_elo")
     # Prepare results in desired format
+    # rating*((1 / (1 + np.exp(((uncertainty)-21)/200))) + 0.5) if uncertainty > 60 else "Honorable Mention"
     ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings
 
@@ -297,6 +304,7 @@ def run_elo(simple_game_sets):
     #         print(score1, score2)
     #         exit(1)
     # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
+    player_update_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: [0, 0])))
     for matchup_count in range(int(5000000 / simple_game_sets_len) * simple_game_sets_len):
         matchup_idx = matchup_count % simple_game_sets_len
         matchup = simple_game_sets[matchup_idx]
@@ -339,39 +347,33 @@ def run_elo(simple_game_sets):
         actual_score2 = score2 / total_games
 
         # Update ratings based on K-factors and actual vs expected scores
-        elo_ratings[player1] += k_factor1 * (actual_score1 - expected_score1)
-        elo_ratings[player2] += k_factor2 * (actual_score2 - expected_score2)
+        p1_update = k_factor1 * (actual_score1 - expected_score1)
+        p2_update = k_factor2 * (actual_score2 - expected_score2)
+        elo_ratings[player1] += p1_update
+        elo_ratings[player2] += p2_update
+
+        if score1 > score2:
+            if matchup_count < simple_game_sets_len:
+                player_update_tracker[player1][player2]["win"][0] += 1
+                player_update_tracker[player2][player1]["loss"][0] += 1
+            player_update_tracker[player1][player2]["win"][1] += p1_update
+            player_update_tracker[player2][player1]["loss"][1] += p2_update
+        else:
+            if matchup_count < simple_game_sets_len:
+                player_update_tracker[player1][player2]["loss"][0] += 1
+                player_update_tracker[player2][player1]["win"][0] += 1
+            player_update_tracker[player1][player2]["loss"][1] += p1_update
+            player_update_tracker[player2][player1]["win"][1] += p2_update
+
+        # all_win_loss_record[player1].append((player2, 1 if matchup_count < simple_game_sets_len else 0, "win" if score1 > score2 else "loss", p1_update))
+        # all_win_loss_record[player2].append((player1, 1 if matchup_count < simple_game_sets_len else 0, "win" if score1 < score2 else "loss", p2_update))
         # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
         #     break
-    sorted_rankings = sorted(elo_ratings.items(), key=lambda a: a[1], reverse=True)
-    all_rated_players = set([p[0] for p in sorted_rankings[:100]])
-    top_win_loss_record = {p[0]: [] for p in sorted_rankings[:50]}
-    print(simple_game_sets_len)
-    for matchup_idx in range(simple_game_sets_len):
-        matchup = simple_game_sets[matchup_idx]
-        player1, player2, score1, score2 = matchup
-        k_factor1 = 50
-        k_factor2 = 50
-        total_games = score1 + score2
-        if total_games == 0:
-            continue
-        actual_score1 = score1 / total_games
-        actual_score2 = score2 / total_games
-        # if player1 == "e2974569" and player2 == "e2974569":
-        #     print(score1, score2)
-        #     exit(1)
-        if player1 in top_win_loss_record:
-            # figure out negative or positive score for player 1 (update
-            # expected_score1 = 1 / (1 + 10 ** ((elo_ratings[player2] - 2600) / 400))  chance of player 1 winning
-            top_win_loss_record[player1].append((player2 if player2 in all_rated_players else "UNRANKED", "loss" if score2 > score1 else "win", elo_ratings[player2]))
-        if player2 in top_win_loss_record:
-            #figure out negative or positive score for player 2 (update
-            top_win_loss_record[player2].append((player1 if player1 in all_rated_players else "UNRANKED", "loss" if score1 > score2 else "win", elo_ratings[player1]))
-
+    import numpy as np
     logger.info("FINISHED run_elo")
     # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
-    return ratings, top_win_loss_record
+    ratings = [{"player": player, "rating": rating*((1 / (1 + np.exp(((2000/games_played[player])-21)/200))) + 0.5), "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
+    return ratings, player_update_tracker
 
 
 def run_trueskill(simple_game_sets):
@@ -470,10 +472,10 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         for matchup_idx in range(simple_game_sets_len):
             matchup = simple_game_sets[matchup_idx]
             player1, player2, score1, score2 = matchup
-            if player1 == "e2974569" and player2 == "e2974569":
-                print("STOP THE CAT")
-                print(score1, score2)
-                exit(1)
+            # if player1 == "e2974569" and player2 == "e2974569":
+            #     print("STOP THE CAT")
+            #     print(score1, score2)
+            #     exit(1)
         ranking, top_win_loss_record = run_elo(simple_game_sets)
     elif ranking_to_run == "trueskill":
         start = time()
