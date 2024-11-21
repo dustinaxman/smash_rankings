@@ -11,7 +11,7 @@ start_end = [
 ['2024-07-15T00:00:00', '2024-11-19T00:00:00']
 ]
 
-ranking_to_run = "trueskill"
+ranking_to_run = "elo"
 
 for start_date, end_date in start_end:
 	all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A"), start_date=start_date, end_date=end_date)

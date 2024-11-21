@@ -71,6 +71,17 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
             player_1_id = "b5230de8"
         if player_2_id == "263c6038":
             player_2_id = "b5230de8"
+        if player_1_id == "205aeef6":
+            player_1_id = "b5230de8"
+        if player_2_id == "205aeef6":
+            player_2_id = "b5230de8"
+        #
+        # if "Sparg" in player_1_name:
+        #     if player_1_id != "b5230de8":
+        #         print(player_1_name, player_1_id)
+        # if "Sparg" in player_2_name:
+        #     if player_2_id != "b5230de8":
+        #         print(player_2_name, player_2_id)
 
         current_date = datetime.fromisoformat(game_set["date"])
         if current_date > last_updated_date_for_id[player_1_id]:

@@ -31,7 +31,6 @@ table = dynamodb.Table('SmashRankingData')
 s3 = boto3.resource('s3')
 s3_client = boto3.client('s3')
 
-SMASH = pysmashgg.SmashGG('8c93fb09c237fd7ab32fb7008d596033', True)
 
 logging.basicConfig(level=logging.INFO,
                     handlers=[logging.FileHandler(Path.home() / 'LOG.txt'), logging.StreamHandler()])
