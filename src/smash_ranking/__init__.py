@@ -12,19 +12,46 @@ from time import time
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import cg
 from scipy.sparse import coo_matrix
+from functools import reduce
+from fractions import Fraction
 import os
 from src.utils.constants import LOG_FOLDER_PATH
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-def process_game_sets_to_simple_format(game_sets, evaluation_level):
+
+def lcm(a, b):
+    return a * b // math.gcd(a, b)
+
+def get_scaling_factor_integer(list_of_floats_to_normalize):
+    # Convert all fractional parts to fractions and extract denominators
+    denominators = [
+        Fraction(n).limit_denominator().denominator for n in list_of_floats_to_normalize
+    ]
+
+    # Find the LCM of all denominators
+    scaling_factor = reduce(lcm, denominators)
+
+    return scaling_factor
+
+
+def process_game_sets_to_simple_format(game_sets, evaluation_level, tournament_tier_weights=None):
     logger.info("Processing games to simple form (process_game_sets_to_simple_format)")
     simple_game_sets = []
     id_to_player_name = dict()
     player_to_id = dict()
     initial_date = datetime(1500, 7, 20)
     last_updated_date_for_id = defaultdict(lambda: initial_date)
+    tournament_tier_weights_base = defaultdict(lambda: 1.0)
+    if tournament_tier_weights is not None:
+        tournament_tier_weights_base.update(**tournament_tier_weights)
+    print(tournament_tier_weights_base)
+    # if tournament_tier_weights is not None:
+    #     used_tiers = list(set([game_set["tier"] for game_set in game_sets]))
+    #     scaling_factor = get_scaling_factor_integer([tournament_tier_weights[tier] for tier in used_tiers])
+    #     normalized_scaling_map = {k: round(scaling_factor * tournament_tier_weights[k]) for k in used_tiers}
+    #     print(normalized_scaling_map)
 
     for game_set in sorted(game_sets, key=lambda g: datetime.fromisoformat(g["date"])):
         player_1_name = str(game_set["player_1"])
@@ -92,12 +119,15 @@ def process_game_sets_to_simple_format(game_sets, evaluation_level):
             last_updated_date_for_id[player_2_id] = current_date
         player_to_id[player_1_name] = player_1_id
         player_to_id[player_2_name] = player_2_id
-        simple_game_sets.append([player_1_id, player_2_id, score1, score2])
-        # if player_1_id == "e2974569" and player_2_id == "e2974569":
+        #simple_game_sets.extend([[player_1_id, player_2_id, score1, score2]]*normalized_scaling_map[game_set["tier"]])
+        simple_game_sets.append([player_1_id, player_2_id, score1, score2, tournament_tier_weights_base[game_set["tier"]]])
+        #if player_1_id == "e2974569" and player_2_id == "e2974569":
         #     print(game_set)
         #     print("SMALL DOG")
         #     exit(1)
     logger.info("FINISHED process_game_sets_to_simple_format")
+    logger.info(len(simple_game_sets))
+    print(len(simple_game_sets))
     return simple_game_sets, id_to_player_name, player_to_id
 
 
@@ -255,7 +285,7 @@ def run_simple_elo(simple_game_sets):
     #simple_game_sets_len*100
     # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
     for matchup in simple_game_sets:
-        player1, player2, score1, score2 = matchup
+        player1, player2, score1, score2, weight = matchup
         total_games = score1 + score2
         if total_games == 0:
             continue
@@ -321,16 +351,19 @@ def run_elo(simple_game_sets):
     #         exit(1)
     # 3 million chosen for rough number of total games in a FIDE period that is stable.  Rounded to nearest epoch
     player_update_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: [0, 0])))
-    for matchup_count in range(int(5000000 / simple_game_sets_len) * simple_game_sets_len):
+    total_games_to_run = max(int(5000000 / simple_game_sets_len), 1) * simple_game_sets_len
+    print("TOTAL GAMES TO RUN", total_games_to_run)
+    for matchup_count in range(total_games_to_run):
         matchup_idx = matchup_count % simple_game_sets_len
         matchup = simple_game_sets[matchup_idx]
-        player1, player2, score1, score2 = matchup
+        player1, player2, score1, score2, weight = matchup
+        # TODO, use the weight here in the most ideal way possible to make
         total_games = score1 + score2
         if total_games == 0:
             continue
         if matchup_count < simple_game_sets_len:
-            games_played[player1] += total_games
-            games_played[player2] += total_games
+            games_played[player1] += total_games*weight*.75
+            games_played[player2] += total_games*weight*.75
 
         # # Determine if players are provisional based on games played
         # is_provisional1 = games_played[player1] < 30
@@ -363,8 +396,8 @@ def run_elo(simple_game_sets):
         actual_score2 = score2 / total_games
 
         # Update ratings based on K-factors and actual vs expected scores
-        p1_update = k_factor1 * (actual_score1 - expected_score1)
-        p2_update = k_factor2 * (actual_score2 - expected_score2)
+        p1_update = weight * k_factor1 * (actual_score1 - expected_score1)
+        p2_update = weight * k_factor2 * (actual_score2 - expected_score2)
         elo_ratings[player1] += p1_update
         elo_ratings[player2] += p2_update
 
@@ -387,7 +420,7 @@ def run_elo(simple_game_sets):
         #     break
     logger.info("FINISHED run_elo")
     # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating, "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
+    ratings = [{"player": player, "rating": rating - 8000/games_played[player], "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings, player_update_tracker
 
 
@@ -396,7 +429,7 @@ def run_trueskill(simple_game_sets):
     env = ts.TrueSkill()
     ts_ratings = defaultdict(lambda: env.create_rating())
     for matchup in simple_game_sets:
-        player1, player2, score1, score2 = matchup
+        player1, player2, score1, score2, weight = matchup
         total_games = score1 + score2
         if total_games == 0:
             continue
@@ -414,7 +447,7 @@ def run_trueskill(simple_game_sets):
             ts_ratings[player1] = new_rating1
             ts_ratings[player2] = new_rating2
     logger.info("FINISHED run_trueskill")
-    ratings = [{"player": r[0], "rating": r[1].mu, "uncertainty": 1.96 * r[1].sigma} for r in ts_ratings.items()]
+    ratings = [{"player": r[0], "rating": r[1].mu -r[1].sigma, "uncertainty": 1.96 * r[1].sigma} for r in ts_ratings.items()]
     return ratings
 
 # def _rate_1vs1_custom(rating1, rating2, env, drawn=False):
@@ -479,14 +512,14 @@ def draw_margin(self, size):
 # Monkey-patch the method
 ts.TrueSkill.draw_margin = draw_margin
 
-def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
+def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets", tournament_tier_weights=None):
     top_win_loss_record = None
     if ranking_to_run == "elo":
-        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level, tournament_tier_weights=tournament_tier_weights)
         simple_game_sets_len = len(simple_game_sets)
         for matchup_idx in range(simple_game_sets_len):
             matchup = simple_game_sets[matchup_idx]
-            player1, player2, score1, score2 = matchup
+            player1, player2, score1, score2, weight = matchup
             # if player1 == "e2974569" and player2 == "e2974569":
             #     print("STOP THE CAT")
             #     print(score1, score2)
@@ -494,24 +527,24 @@ def get_player_rating(game_sets, ranking_to_run="elo", evaluation_level="sets"):
         ranking, top_win_loss_record = run_elo(simple_game_sets)
     elif ranking_to_run == "trueskill":
         start = time()
-        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level)
+        simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets, evaluation_level, tournament_tier_weights=tournament_tier_weights)
         print(f"finished process_game_sets_to_simple_format", time()-start)
         ranking = run_trueskill(simple_game_sets)
     elif ranking_to_run == "bradleyterry":
         game_sets_filtered = filter_game_sets(game_sets, threshold_sets=None, threshold_games=None)
-        simple_game_sets_filtered, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets_filtered, evaluation_level)
+        simple_game_sets_filtered, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets_filtered, evaluation_level, tournament_tier_weights=tournament_tier_weights)
         ranking = run_bradley_terry(simple_game_sets_filtered)
     elif ranking_to_run == "glicko2":
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
-                                                                                               evaluation_level)
+                                                                                               evaluation_level, tournament_tier_weights=tournament_tier_weights)
         ranking = run_glicko2(simple_game_sets)
     elif ranking_to_run == "simpleelo":
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
-                                                                                               evaluation_level)
+                                                                                               evaluation_level, tournament_tier_weights=tournament_tier_weights)
         ranking = run_simple_elo(simple_game_sets)
     elif ranking_to_run == "bayesianelo":
         simple_game_sets, id_to_player_name, player_to_id = process_game_sets_to_simple_format(game_sets,
-                                                                                               evaluation_level)
+                                                                                               evaluation_level, tournament_tier_weights=tournament_tier_weights)
         ranking = bayesian_elo(simple_game_sets)
     return ranking, id_to_player_name, player_to_id, top_win_loss_record
 
@@ -576,7 +609,7 @@ def run_glicko2(simple_game_sets, initial_rating=1500, initial_rd=350, initial_v
 
     # Process each match outcome
     for matchup in simple_game_sets:
-        player1, player2, score1, score2 = matchup
+        player1, player2, score1, score2, weight = matchup
         total_games = score1 + score2
         if total_games == 0:
             continue  # Skip if there are no games played

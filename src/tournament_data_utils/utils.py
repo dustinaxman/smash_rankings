@@ -96,7 +96,8 @@ def download_s3_files(all_s3_files_to_download, overwrite=False):
     """
     # Ensure local directory exists
     LOCAL_TOURNAMENT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
+    if len(all_s3_files_to_download) == 0:
+        return
     # Define maximum threads
     num_cores = multiprocessing.cpu_count()
     max_threads = min(4 * num_cores, len(all_s3_files_to_download))
@@ -122,7 +123,7 @@ def get_all_sets_from_tournament_files(all_tournament_files):
     for filename in all_tournament_files:
         with open(LOCAL_TOURNAMENT_DATA_DIR/filename, "r") as f:
             jsn = json.load(f)
-            all_sets.extend([{"tournament_name": jsn["name"], "date": jsn["date"], **s} for s in jsn["sets"]])
+            all_sets.extend([{"tournament_name": jsn["name"], "date": jsn["date"], "tier": jsn["tier"], **s} for s in jsn["sets"]])
     return all_sets
 
 
@@ -147,9 +148,9 @@ def display_rating(ratings_dict, threshold=100):
     for record in sorted(ratings, key=lambda a: a["rating"], reverse=True)[:threshold]:
         player, rating, uncertainty = record["player"], record["rating"], record["uncertainty"]
         if uncertainty is not None:
-            print(f"| {player} | {rating:.2f} | {uncertainty:.2f} |")
+            print(f"| {player} | {rating:.4f} | {uncertainty:.2f} |")
         else:
-            print(f"| {player} | {rating:.2f} | None |")
+            print(f"| {player} | {rating:.4f} | None |")
 
 
 def get_win_loss_interpretation(ratings, top_win_loss_record, id_to_player_name):
