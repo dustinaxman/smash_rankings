@@ -1,3 +1,20 @@
+
+docker run -v /Users/deaxman/Downloads/test_2023:/data -v ~/.aws:/root/.aws tournament_updater_image --tournament_folder_path /data
+
+
+docker run -v ~/.aws:/root/.aws tournament_updater_image --tournament_folder_path /data
+
+
+check ip access:
+
+aws logs filter-log-events \
+    --log-group-name "SmashRankerLogs" \
+    --start-time $(($(date -v-30d +%s)*1000)) \
+    --end-time $(($(date +%s)*1000)) \
+    --query 'events[*].message' \
+    --output text | awk '{print $1}' | sort | uniq -c | sort -nr
+
+
 # aws dynamodb delete-table --table-name SmashRankingCache
 
 

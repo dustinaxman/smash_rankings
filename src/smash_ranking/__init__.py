@@ -413,12 +413,12 @@ def run_elo(simple_game_sets):
                 player_update_tracker[player2][player1]["win"][0] += 1
             player_update_tracker[player1][player2]["loss"][1] += p1_update
             player_update_tracker[player2][player1]["win"][1] += p2_update
-
         # all_win_loss_record[player1].append((player2, 1 if matchup_count < simple_game_sets_len else 0, "win" if score1 > score2 else "loss", p1_update))
         # all_win_loss_record[player2].append((player1, 1 if matchup_count < simple_game_sets_len else 0, "win" if score1 < score2 else "loss", p2_update))
         # if matchup_idx == 0 and matchup_count >= simple_game_sets_len and max(elo_ratings.values()) > 2800:
         #     break
     logger.info("FINISHED run_elo")
+    print(len(elo_ratings))
     # Prepare results in desired format
     ratings = [{"player": player, "rating": rating - 8000/games_played[player], "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings, player_update_tracker

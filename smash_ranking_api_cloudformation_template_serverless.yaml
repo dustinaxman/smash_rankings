@@ -182,42 +182,42 @@ Resources:
       RestApiId: !Ref ApiGatewayRestApi
       StageName: prod
 
-  # AWS WAF Web ACL with rate-based rule for per-IP throttling
-  WAFWebACL:
-    Type: AWS::WAFv2::WebACL
-    Properties:
-      Name: "SmashRankerWebACL"
-      Scope: REGIONAL
-      DefaultAction:
-        Allow: {}
-      Rules:
-        - Name: "RateLimitRule"
-          Priority: 1
-          Action:
-            Block: {}
-          Statement:
-            RateBasedStatement:
-              Limit: 600
-              AggregateKeyType: IP
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: "RateLimitRule"
-      VisibilityConfig:
-        SampledRequestsEnabled: true
-        CloudWatchMetricsEnabled: true
-        MetricName: "SmashRankerWebACL"
+  # # AWS WAF Web ACL with rate-based rule for per-IP throttling
+  # WAFWebACL:
+  #   Type: AWS::WAFv2::WebACL
+  #   Properties:
+  #     Name: "SmashRankerWebACL"
+  #     Scope: REGIONAL
+  #     DefaultAction:
+  #       Allow: {}
+  #     Rules:
+  #       - Name: "RateLimitRule"
+  #         Priority: 1
+  #         Action:
+  #           Block: {}
+  #         Statement:
+  #           RateBasedStatement:
+  #             Limit: 600
+  #             AggregateKeyType: IP
+  #         VisibilityConfig:
+  #           SampledRequestsEnabled: true
+  #           CloudWatchMetricsEnabled: true
+  #           MetricName: "RateLimitRule"
+  #     VisibilityConfig:
+  #       SampledRequestsEnabled: true
+  #       CloudWatchMetricsEnabled: true
+  #       MetricName: "SmashRankerWebACL"
 
-  # Web ACL association with API Gateway stage
-  WAFWebACLAssociation:
-      Type: AWS::WAFv2::WebACLAssociation
-      DependsOn:
-        - ApiGatewayDeployment
-        - WAFWebACL
-        - ApiGatewayRestApi
-      Properties:
-        ResourceArn: !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/prod"
-        WebACLArn: !GetAtt WAFWebACL.Arn
+  # # Web ACL association with API Gateway stage
+  # WAFWebACLAssociation:
+  #     Type: AWS::WAFv2::WebACLAssociation
+  #     DependsOn:
+  #       - ApiGatewayDeployment
+  #       - WAFWebACL
+  #       - ApiGatewayRestApi
+  #     Properties:
+  #       ResourceArn: !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/prod"
+  #       WebACLArn: !GetAtt WAFWebACL.Arn
 
   UsagePlan:
       Type: AWS::ApiGateway::UsagePlan
