@@ -143,22 +143,23 @@ def display_rating(ratings_dict, threshold=100):
     rating_name = ratings_dict["name"]
     ratings = ratings_dict["ratings"]
     print(f"## {rating_name} Ratings")
-    print("| Player | Mean Rating | Relative Uncertainty |")
-    print("|--------|-------------|----------|")
-    for record in sorted(ratings, key=lambda a: a["rating"], reverse=True)[:threshold]:
+    print("| Rank | Player | Mean Rating | Relative Uncertainty |")
+    print("|---|--------|-------------|----------|")
+    for rank, record in enumerate(sorted(ratings, key=lambda a: a["rating"], reverse=True)[:threshold]):
         player, rating, uncertainty = record["player"], record["rating"], record["uncertainty"]
+        player = player.replace("|", " ")
         if "lumirank" not in record:
             if uncertainty is not None:
-                print(f"| {player} | {rating:.4f} | {uncertainty:.2f} |")
+                print(f"| {rank} | {player} | {rating:.4f} | {uncertainty:.2f} |")
             else:
-                print(f"| {player} | {rating:.4f} | None |")
+                print(f"| {rank} | {player} | {rating:.4f} | None |")
         else:
             lumirank = record["lumirank"] if record["lumirank"] is not None else 0
             lumirank_diff = 100 if lumirank is None else rating-lumirank
             if uncertainty is not None:
-                print(f"| {player} | {rating:.4f} | {uncertainty:.2f} | {lumirank:.2f} | {lumirank_diff:.2f}")
+                print(f"| {rank} | {player} | {rating:.4f} | {uncertainty:.2f} | {lumirank:.2f} | {lumirank_diff:.2f}")
             else:
-                print(f"| {player} | {rating:.4f} | None | {lumirank:.2f} | {lumirank:.2f} | {lumirank_diff:.2f}")
+                print(f"| {rank} | {player} | {rating:.4f} | None | {lumirank:.2f} | {lumirank:.2f} | {lumirank_diff:.2f}")
 
 
 def get_win_loss_interpretation(ratings, top_win_loss_record, id_to_player_name):
