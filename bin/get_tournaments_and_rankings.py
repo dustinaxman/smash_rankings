@@ -150,16 +150,17 @@ start_end = [
 #['2019-02-01T00:00:00', '2019-07-08T00:00:00'],
 #['2019-07-08T00:00:00', '2019-12-18T00:00:00'],
 #['2022-01-01T00:00:00', '2022-12-30T00:00:00'],
-['2022-12-19T00:00:00', '2023-07-23T00:00:00'], #summer 2023
-['2022-12-14T00:00:00', '2023-12-18T00:00:00'], #2023
-['2023-12-20T00:00:00', '2024-07-16T00:00:00'], #2024.1
-['2024-07-16T00:00:00', '2024-11-30T00:00:00'] #2024.2
+#['2022-12-19T00:00:00', '2023-07-23T00:00:00'], #summer 2023
+#['2022-12-14T00:00:00', '2023-12-18T00:00:00'], #2023
+#['2023-12-20T00:00:00', '2024-07-16T00:00:00'], #2024.1
+#['2024-07-16T00:00:00', '2024-12-16T00:00:00'] #2024.2
+['2024-12-17T00:00:00', '2025-07-16T00:00:00'] #2025.1
 #['2018-07-16T00:00:00', '2024-11-30T00:00:00']
 ]
 
 
 lumirank_ratings = [players_scores_2023_summer, players_scores_2023, players_scores_20241, players_scores_20242]
-
+lumirank_ratings = [players_scores_20242]
 
 
 ranking_to_run = "elo"
@@ -170,7 +171,7 @@ ranking_to_run = "elo"
 #tier_weights = {"P": 2.0, "S+": 1.7, "S": 1.3, "A+": 1.2, "A": 1.0, "B+": 0.2, "B": 0.1} #GOOD!!
 #tier_weights = {"P": 2.5, "S+": 2.1, "S": 1.8, "A+": 1.4, "A": 1.2, "B+": 0.2, "B": 0.1}
 #tier_weights = {"P": 2.0, "S+": 1.7, "S": 1.3, "A+": 1.2, "A": 1.0, "B+": 0.8, "B": 0.7}
-tier_weights = {"P": 1.4, "S+": 1.3, "S": 1.2, "A+": 1.1, "A": 1.0, "B+": 0.8, "B": 0.6}
+tier_weights = {"P": 1.4, "S+": 1.3, "S": 1.2, "A+": 1.1, "A": 1.0, "B+": 0.8, "B": 0.6, "C": 0.2} #BEST
 import numpy as np
 
 all_lumirank_players = set([k for lumirank_ratings_season in lumirank_ratings for k in lumirank_ratings_season])
@@ -178,7 +179,7 @@ all_lumirank_players = set([k for lumirank_ratings_season in lumirank_ratings fo
 for season_i, (start_date, end_date) in enumerate(start_end):
     lumirank_ratings_season = lumirank_ratings[season_i]
     # create overall dict (overall_rankings) that will be the mean normalized score of the top 100 of sorted_rankings across all tiers/weights
-    all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B"), start_date=start_date, end_date=end_date)
+    all_sets = get_all_sets_from_dates_and_tiers(tier_options=("P", "S+", "S", "A+", "A", "B+", "B", "C"), start_date=start_date, end_date=end_date)
     ratings, id_to_player_name, player_to_id, top_win_loss_record = get_player_rating(all_sets, ranking_to_run=ranking_to_run, evaluation_level="sets", tournament_tier_weights=tier_weights)
     sorted_rankings = sorted(ratings, key=lambda a: a["rating"], reverse=True)[:100]
     #normalize the ratings
@@ -189,11 +190,20 @@ for season_i, (start_date, end_date) in enumerate(start_end):
     score_50 = sorted([r["rating"] for r in sorted_rankings], reverse=True)[49]
     A = 50.0/float(max_score-score_50)
     b = 100.0-(A*max_score)
-
+    #b = 0
+    #A = 1
+    #variance_thresh = 10000000
     ratings_dict = {"name": ranking_to_run, "ratings": [
-        {"player": id_to_player_name[r["player"]], "rating": (r["rating"]*A)+b, "uncertainty": r["uncertainty"], "lumirank": lumirank_ratings_season[myrank_to_lumirank_name_mapping[id_to_player_name[r["player"]]]] if ((id_to_player_name[r["player"]] in myrank_to_lumirank_name_mapping) and (myrank_to_lumirank_name_mapping[id_to_player_name[r["player"]]] in lumirank_ratings_season)) else None} for r in
+        {"player": id_to_player_name[r["player"]], "rating": (r["rating"]*A)+b, "uncertainty": r["uncertainty"]} for r in
         sorted_rankings if variance_thresh > r["uncertainty"]]}
-    display_rating(ratings_dict, threshold=20)
+    # ratings_dict = {"name": ranking_to_run, "ratings": [
+    #     {"player": id_to_player_name[r["player"]], "rating": (r["rating"] * A) + b, "uncertainty": r["uncertainty"],
+    #      "lumirank": lumirank_ratings_season[myrank_to_lumirank_name_mapping[id_to_player_name[r["player"]]]] if (
+    #                  (id_to_player_name[r["player"]] in myrank_to_lumirank_name_mapping) and (
+    #                      myrank_to_lumirank_name_mapping[
+    #                          id_to_player_name[r["player"]]] in lumirank_ratings_season)) else None} for r in
+    #     sorted_rankings if variance_thresh > r["uncertainty"]]}
+    display_rating(ratings_dict, threshold=200)
 #     for record in sorted(ratings_dict["ratings"], key=lambda a: a["rating"], reverse=True)[:20]:
 #         print(record["player"])
 #         record["rating"]
@@ -210,6 +220,123 @@ for season_i, (start_date, end_date) in enumerate(start_end):
 #
 # print(all_lumirank_players)
 
+exit(1)
+
+rating_name = ratings_dict["name"]
+ratings = ratings_dict["ratings"]
+rank_to_rating = {}
+for rank, record in enumerate(sorted(ratings, key=lambda a: a["rating"], reverse=True)):
+    player, rating, uncertainty = record["player"], record["rating"], record["uncertainty"]
+    rank_to_rating[rank+1] = rating
+
+
+maesumatop1 = [27, 33, 65, 34, 3]
+gsm = [13, 9, 70]
+sb54 = [93, 34, 57, 56, 52, 71, 33, 33]
+lmbm2025 = [42, 14, 14]
+dpotg2024 = [26, 7, 2, 2]
+miya_maesumatop14 = [48, 62, 66, 66]
+crepe_salee_ufa2024 = [44, 44, 89]
+
+lima_cirque4 = [20, 42, 25, 1, 4, 2]
+sparg0_throne2 = [10, 54, 12, 8, 4, 4]
+sonix_supernova = [2, 3, 4, 6, 9, 10, 16, 48]
+
+elo_player1 = 2844
+#elo_player1 = 2950
+
+list_of_tournaments0 = [maesumatop1]
+list_of_tournaments1 = [gsm]
+list_of_tournaments2 = [sb54]
+list_of_tournaments3 = [lmbm2025]
+list_of_tournaments4 = [dpotg2024]
+list_of_tournaments5 = [lima_cirque4]
+list_of_tournaments6 = [sparg0_throne2]
+list_of_tournaments7 = [sonix_supernova]
+list_of_tournaments8 = [miya_maesumatop14]
+list_of_tournaments9 = [crepe_salee_ufa2024]
+
+
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments0 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+print(total_prob)
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments1 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+print(total_prob)
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments2 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+print(total_prob)
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments3 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+print(total_prob)
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments4 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+
+print(total_prob)
+
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments5 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+
+print(total_prob)
+
+
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments6 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+
+print(total_prob)
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments7 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+
+print(total_prob)
+
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments8 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+
+print(total_prob)
+
+total_prob = 1
+elo_list = combined_list = [rank_to_rating[item] for sublist in list_of_tournaments9 for item in sublist]
+for elo in elo_list:
+    total_prob *= (1 / (1 + 10 ** ((elo - elo_player1) / 400)))
+
+
+print(total_prob)
 exit(1)
 
 

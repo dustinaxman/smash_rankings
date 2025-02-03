@@ -445,7 +445,7 @@ def process_tournament_file(file_path):
         link = row["link"]
 
         # Skip rows without valid links
-        if '.gg/' not in str(link) or "lne.gg" in str(link):
+        if '.gg/' not in str(link) or "lne.gg" in str(link) or "12g.gg" in str(link):
             if row["tournament"]:
                 logging.info(f"BAD TOURNAMENT NO LINK: {str(row)}")
             continue

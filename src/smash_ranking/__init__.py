@@ -419,8 +419,8 @@ def run_elo(simple_game_sets):
         #     break
     logger.info("FINISHED run_elo")
     print(len(elo_ratings))
-    # Prepare results in desired format
-    ratings = [{"player": player, "rating": rating - 8000/games_played[player], "uncertainty": 2000/games_played[player]} for player, rating in elo_ratings.items()]
+    # Prepare results in desired format # - 2000/games_played[player]
+    ratings = [{"player": player, "rating": rating, "uncertainty": 8000/games_played[player]} for player, rating in elo_ratings.items()]
     return ratings, player_update_tracker
 
 
